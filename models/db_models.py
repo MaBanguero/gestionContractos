@@ -81,6 +81,7 @@ class DBPago(Base):
 
     fecha_registro = Column(DateTime, default=datetime.utcnow)
     contrato = relationship("DBContrato", back_populates="pagos")
+    fecha_firma = Column(String, nullable=True)
 
 
 class DBUsuario(Base):

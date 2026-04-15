@@ -56,23 +56,20 @@ class GestorTransacciones:
             }
             pagos_con_acumulado.append(pago_dict)
 
-        # LÓGICA DE SALDO DISPONIBLE CORREGIDA:
-        # El saldo real es el Valor Final del contrato MENOS lo que ya se facturó/causó,
-        # sin importar si ya se le giró el dinero o no.
+        # LÓGICA DE SALDO DISPONIBLE CORREGIDA
         valor_base_contrato = contrato.valor_final if contrato.valor_final else contrato.valor_total
         saldo_presupuestal = valor_base_contrato - total_causado_acumulado
 
         sugerencia_giro = total_causado_acumulado - acumulado_progresivo
         proximo_pago = (pagos_db[-1].numero_pago + 1) if pagos_db else 1
 
-        # El porcentaje de ejecución del contrato debe medirse por el trabajo realizado (Causado)
         porcentaje = (total_causado_acumulado / valor_base_contrato * 100) if valor_base_contrato > 0 else 0
 
         return {
             "contrato": contrato,
             "pagos": pagos_con_acumulado,
             "total_pagado": int(acumulado_progresivo),
-            "saldo": int(saldo_presupuestal),  # <--- Aquí enviamos el saldo corregido
+            "saldo": int(saldo_presupuestal),
             "porcentaje": round(porcentaje, 1),
             "proximo_pago": proximo_pago,
             "acumulado_historico_pagado": int(sugerencia_giro),
@@ -120,23 +117,28 @@ class GestorTransacciones:
 
     def generar_excel_supervisiones(self, numero_contrato: str = None):
         """ Genera el Excel. Si recibe numero_contrato, filtra solo ese. Si no, exporta todos. """
-
-        # Iniciamos la consulta base
         query = self.db.query(DBPago)
 
-        # Aplicamos el filtro si el usuario solicitó un contrato específico
         if numero_contrato:
             query = query.filter(DBPago.contrato_id == numero_contrato)
 
-        # Ejecutamos la consulta ordenando los datos
         pagos = query.order_by(DBPago.contrato_id, DBPago.numero_pago).all()
-
         data = []
 
         for p in pagos:
             c = p.contrato
-            total_historico = sum(pg.valor_pagado for pg in c.pagos if pg.numero_pago <= p.numero_pago)
-            saldo_a_pagar = c.valor_total - total_historico
+
+            # --- LÓGICA SINCRONIZADA CON LA PLATAFORMA ---
+            valor_base_contrato = c.valor_final if c.valor_final else c.valor_total
+
+            # 1. Total causado hasta el pago actual
+            total_causado_acumulado = sum((pg.valor_a_pagar or 0) for pg in c.pagos if pg.numero_pago <= p.numero_pago)
+
+            # 2. Saldo a Pagar: Valor total menos lo ya causado
+            saldo_a_pagar = valor_base_contrato - total_causado_acumulado
+
+            # 3. Valor Pagado (Giro): 0 en el pago 1, y la suma de causaciones anteriores en los siguientes
+            valor_pagado_calculado = sum((pg.valor_a_pagar or 0) for pg in c.pagos if pg.numero_pago < p.numero_pago)
 
             data.append({
                 "TIPO DE INFORME": p.tipo_informe,
@@ -157,31 +159,31 @@ class GestorTransacciones:
                 "CDP  No.": c.cdp,
                 "CRP No.": c.crp,
                 "IMPUTACIÓN PRESUPUESTAL": c.imputacion,
-                "VALOR TOTAL DEL CONTRATO": c.valor_total,
+                "VALOR TOTAL DEL CONTRATO": int(c.valor_total) if c.valor_total else 0,
                 "FECHA DE INICIO DEL CONTRATO": c.fecha_inicio,
                 "FECHA TERMINACION DEL CONTRATO": c.fecha_terminacion,
                 "TIEMPO DE ADICION DE CONTRATO": c.tiempo_adicion,
-                "VALOR FINAL DEL CONTRATO": c.valor_final,
+                "VALOR FINAL DEL CONTRATO": int(c.valor_final) if c.valor_final else 0,
                 "FORMA DE PAGO": c.forma_pago,
                 "PAGO No": p.numero_pago,
                 "Cuentas de cobro": p.cuentas_cobro,
-                "VALOR A PAGAR": p.valor_a_pagar,
+                "VALOR A PAGAR": int(p.valor_a_pagar) if p.valor_a_pagar else 0,
                 "OTRO SI": p.otro_si,
-                "VALOR PAGADO": p.valor_pagado,
-                "SALDO A PAGAR": saldo_a_pagar,
-                "IBC al sistema de Seguridad Social": p.ibc,
+                "VALOR PAGADO": int(valor_pagado_calculado),  # Aplicando tu regla
+                "SALDO A PAGAR": int(saldo_a_pagar),
+                "IBC al sistema de Seguridad Social": int(p.ibc) if p.ibc else 0,
                 "PERIODO COTIZADO": p.periodo_cotizado,
                 "EPS": p.eps_nombre,
-                "EPS VALOR PAGADO": p.eps_valor,
+                "EPS VALOR PAGADO": int(p.eps_valor) if p.eps_valor else 0,
                 "ARL": p.arl_nombre,
-                "ARL VALOR PAGADO": p.arl_valor,
+                "ARL VALOR PAGADO": int(p.arl_valor) if p.arl_valor else 0,
                 "AFP NOMBRE": p.afp_nombre,
-                "AFP VALOR PAGADO": p.afp_valor,
-                "SENA VALOR PAGADO": p.sena_valor,
-                "ICBF VALOR PAGADO": p.icbf_valor,
+                "AFP VALOR PAGADO": int(p.afp_valor) if p.afp_valor else 0,
+                "SENA VALOR PAGADO": int(p.sena_valor) if p.sena_valor else 0,
+                "ICBF VALOR PAGADO": int(p.icbf_valor) if p.icbf_valor else 0,
                 "CCF": p.ccf_nombre,
-                "CCF VALOR PAGADO": p.ccf_valor,
-                "VALOR TOTAL PLANILLA": p.valor_total_planilla,
+                "CCF VALOR PAGADO": int(p.ccf_valor) if p.ccf_valor else 0,
+                "VALOR TOTAL PLANILLA": int(p.valor_total_planilla) if p.valor_total_planilla else 0,
                 "PLANILLA No.": p.planilla_no,
                 "ANEXA CERTIFICACION PARA ASIMILARSE A ASALARIADO": p.anexa_cert,
                 "OBJETO DEL CONTRATO": c.objeto,
@@ -195,39 +197,43 @@ class GestorTransacciones:
                 "ZONA": c.zona
             })
 
-        return pd.DataFrame(data)
+        df = pd.DataFrame(data)
+
+        # --- CORRECCIÓN DE FORMATO CDP Y CRP ---
+        def formatear_codigo(val):
+            try:
+                if pd.isna(val) or str(val).strip() == '' or str(val).lower() == 'nan':
+                    return ''
+                return str(int(float(val))).zfill(3)
+            except Exception:
+                return str(val).strip()
+
+        if not df.empty:
+            for col in ['CDP  No.', 'CRP No.']:
+                if col in df.columns:
+                    df[col] = df[col].apply(formatear_codigo)
+
+        return df
 
     def importar_datos_csv(self, contenido_csv: str):
         """ Procesa el archivo CSV e inserta TODAS las 54 columnas modularmente """
         reader = csv.DictReader(io.StringIO(contenido_csv))
         registros = 0
 
-        # --- PARSER DE NÚMEROS A PRUEBA DE ERRORES ---
         def parse_float(val):
             try:
                 if not val or str(val).strip() in ['', 'N/A', 'NA', '-']:
                     return 0.0
-
-                # 1. Limpiamos signos de moneda y espacios
                 s = str(val).replace('$', '').replace(' ', '').strip()
-
-                # 2. Caso: Formato Latino explícito (ej: 1.234.567,89)
                 if '.' in s and ',' in s:
                     s = s.replace('.', '').replace(',', '.')
-
-                # 3. Caso: Solo puntos como miles (ej: 2.800.000)
                 elif '.' in s and len(s.split('.')[-1]) == 3:
                     s = s.replace('.', '')
-
-                # 4. Caso: Solo coma como decimal (ej: 2800000,50)
                 elif ',' in s:
                     s = s.replace(',', '.')
-
                 return float(s)
             except Exception as e:
                 return 0.0
-
-        # ----------------------------------------------------
 
         for row in reader:
             try:
@@ -235,7 +241,6 @@ class GestorTransacciones:
                 numero_contrato = str(row.get('N° DE CONTRATO', '')).strip()
                 if not identificacion or not numero_contrato: continue
 
-                # 1. Crear Contratista con todos sus datos
                 if not self.db.query(DBContratista).filter(DBContratista.identificacion == identificacion).first():
                     self.db.add(DBContratista(
                         identificacion=identificacion,
@@ -246,7 +251,6 @@ class GestorTransacciones:
                         tipo_persona=row.get('TIPO DE PERSONA', '')
                     ))
 
-                # 2. Crear Contrato con todos sus datos
                 if not self.db.query(DBContrato).filter(DBContrato.numero_contrato == numero_contrato).first():
                     self.db.add(DBContrato(
                         numero_contrato=numero_contrato,
@@ -272,7 +276,6 @@ class GestorTransacciones:
                         zona=row.get('ZONA', '')
                     ))
 
-                # 3. Registrar el Pago y la Supervisión con todos los campos
                 pago_no_str = str(row.get('PAGO No', '1')).strip()
                 pago_no = int(parse_float(pago_no_str)) if pago_no_str else 1
 
@@ -326,7 +329,6 @@ class GestorTransacciones:
             if not pago:
                 return False, "Pago no encontrado."
 
-            # Actualizamos los campos dinámicamente
             for key, value in datos.items():
                 if hasattr(pago, key):
                     setattr(pago, key, value)
@@ -350,3 +352,52 @@ class GestorTransacciones:
             self.db.rollback()
             return False, f"Error al eliminar: {str(e)}"
 
+    def crear_o_actualizar_contrato(self, datos: dict):
+        try:
+            identificacion = str(datos.get("identificacion")).strip()
+            num_contrato = str(datos.get("numero_contrato")).strip()
+
+            # 1. CONTRATISTA: Buscar si existe
+            contratista = self.db.query(DBContratista).filter(DBContratista.identificacion == identificacion).first()
+            if not contratista:
+                contratista = DBContratista(
+                    identificacion=identificacion,
+                    nombre=datos.get("nombre"),
+                    expedida_en=datos.get("expedida_en"),
+                    telefono=datos.get("telefono"),
+                    direccion=datos.get("direccion"),
+                    tipo_persona=datos.get("tipo_persona")
+                )
+                self.db.add(contratista)
+            else:
+                # Si existe, actualizamos sus datos
+                contratista.nombre = datos.get("nombre", contratista.nombre)
+                contratista.expedida_en = datos.get("expedida_en", contratista.expedida_en)
+                contratista.telefono = datos.get("telefono", contratista.telefono)
+                contratista.direccion = datos.get("direccion", contratista.direccion)
+                contratista.tipo_persona = datos.get("tipo_persona", contratista.tipo_persona)
+
+            # 2. CONTRATO: Buscar si existe
+            contrato = self.db.query(DBContrato).filter(DBContrato.numero_contrato == num_contrato).first()
+
+            # Filtramos los datos que pertenecen solo al contrato
+            campos_excluidos = ["nombre", "identificacion", "expedida_en", "telefono", "direccion", "tipo_persona",
+                                "numero_contrato"]
+            datos_contrato = {k: v for k, v in datos.items() if k not in campos_excluidos}
+
+            if not contrato:
+                nuevo_contrato = DBContrato(numero_contrato=num_contrato, contratista_id=identificacion,
+                                            **datos_contrato)
+                self.db.add(nuevo_contrato)
+            else:
+                # Si existe, actualizamos los campos del contrato
+                for key, value in datos_contrato.items():
+                    if hasattr(contrato, key):
+                        setattr(contrato, key, value)
+                contrato.contratista_id = identificacion
+
+            self.db.commit()
+            return True, "Información del contrato guardada exitosamente."
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            return False, f"Error de BD: {str(e)}"

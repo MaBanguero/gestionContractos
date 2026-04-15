@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="javascript:history.back()" class="text-decoration-none text-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card shadow border-0 border-top border-primary border-3 mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0 text-primary">
+                    <i class="bi bi-file-earmark-person"></i>
+                    {% if contrato %}Editar Información del Contrato{% else %}Crear Nuevo Contrato{% endif %}
+                </h5>
+            </div>
+            <div class="card-body bg-light">
+
+                <form action="/contrato/guardar" method="POST">
+
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3 mt-2">1. Datos del Profesional (Contratista)</h6>
+                    <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-muted">No. DE IDENTIFICACIÓN</label>
+                            <input type="text" name="identificacion" value="{{ contrato.contratista.identificacion if contrato else '' }}" class="form-control" required {% if contrato %}readonly{% endif %}>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="small fw-bold text-muted">CONTRATISTA (Nombre Completo)</label>
+                            <input type="text" name="nombre" value="{{ contrato.contratista.nombre if contrato else '' }}" class="form-control text-uppercase" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">EXPEDIDA EN</label>
+                            <input type="text" name="expedida_en" value="{{ contrato.contratista.expedida_en if contrato else '' }}" class="form-control text-uppercase">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">No. TELÉFONO y/o CELULAR</label>
+                            <input type="text" name="telefono" value="{{ contrato.contratista.telefono if contrato else '' }}" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">TIPO DE PERSONA</label>
+                            <select name="tipo_persona" class="form-select">
+                                <option value="NATURAL" {% if contrato and contrato.contratista.tipo_persona == 'NATURAL' %}selected{% endif %}>NATURAL</option>
+                                <option value="JURIDICA" {% if contrato and contrato.contratista.tipo_persona == 'JURIDICA' %}selected{% endif %}>JURIDICA</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="small text-muted">DIRECCION</label>
+                            <input type="text" name="direccion" value="{{ contrato.contratista.direccion if contrato else '' }}" class="form-control text-uppercase">
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">2. Identificación del Contrato</h6>
+                    <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-primary">No. DE CONTRATO</label>
+                            <input type="text" name="numero_contrato" value="{{ contrato.numero_contrato if contrato else '' }}" class="form-control fw-bold" required {% if contrato %}readonly{% endif %}>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">PERFIL</label>
+                            <select name="perfil" class="form-select text-uppercase" required>
+                                <option value="MEDICINA" {% if contrato and contrato.perfil == 'MEDICINA' %}selected{% endif %}>MEDICINA</option>
+                                <option value="ENFERMERIA" {% if contrato and contrato.perfil == 'ENFERMERIA' %}selected{% endif %}>ENFERMERIA</option>
+                                <option value="PSICOLOGIA" {% if contrato and contrato.perfil == 'PSICOLOGIA' %}selected{% endif %}>PSICOLOGIA</option>
+                                <option value="SALUD ORAL" {% if contrato and contrato.perfil == 'SALUD ORAL' %}selected{% endif %}>SALUD ORAL</option>
+                                <option value="AUXILIAR ENFERMERIA" {% if contrato and contrato.perfil == 'AUXILIAR ENFERMERIA' %}selected{% endif %}>AUXILIAR ENFERMERIA</option>
+                                <option value="AUXILIAR VACUNACION" {% if contrato and contrato.perfil == 'AUXILIAR VACUNACION' %}selected{% endif %}>AUXILIAR VACUNACION</option>
+                                <option value="GESTOR COMUNITARIO" {% if contrato and contrato.perfil == 'GESTOR COMUNITARIO' %}selected{% endif %}>GESTOR COMUNITARIO</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">ACTIVIDAD IICA- CÓDIGO CIIU</label>
+                            <input type="text" name="codigo_ciiu" value="{{ contrato.codigo_ciiu if contrato else '8692' }}" class="form-control">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="small text-muted">OBJETO DEL CONTRATO</label>
+                            <textarea name="objeto" class="form-control text-uppercase" rows="3" required>{{ contrato.objeto if contrato else '' }}</textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">UNIDAD DE ATENCION</label>
+                            <input type="text" name="unidad_atencion" value="{{ contrato.unidad_atencion if contrato else 'PUERTO TEJADA' }}" class="form-control text-uppercase">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">MUNICIPIO</label>
+                            <input type="text" name="municipio" value="{{ contrato.municipio if contrato else 'PUERTO TEJADA' }}" class="form-control text-uppercase">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">ZONA</label>
+                            <input type="text" name="zona" value="{{ contrato.zona if contrato else '' }}" class="form-control text-uppercase">
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">3. Fechas y Valores Financieros</h6>
+                    <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
+                        <div class="col-md-3">
+                            <label class="small text-muted">FECHA DE INICIO</label>
+                            <input type="text" name="fecha_inicio" value="{{ contrato.fecha_inicio if contrato else '' }}" class="form-control" placeholder="Ej: 2/2/2026">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small text-muted">FECHA TERMINACION</label>
+                            <input type="text" name="fecha_terminacion" value="{{ contrato.fecha_terminacion if contrato else '' }}" class="form-control" placeholder="Ej: 31/12/2026">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small text-muted">TIEMPO DE ADICION</label>
+                            <input type="text" name="tiempo_adicion" value="{{ contrato.tiempo_adicion if contrato else 'N/A' }}" class="form-control text-uppercase">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small text-muted">FORMA DE PAGO</label>
+                            <input type="text" name="forma_pago" value="{{ contrato.forma_pago if contrato else '' }}" class="form-control text-uppercase">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small fw-bold text-success">VALOR TOTAL DEL CONTRATO (Inicial)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" step="1" name="valor_total" value="{{ contrato.valor_total if contrato else 0 }}" class="form-control fw-bold" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small fw-bold text-info">VALOR FINAL DEL CONTRATO (Con Adiciones)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" step="1" name="valor_final" value="{{ contrato.valor_final if contrato else 0 }}" class="form-control fw-bold" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">4. Supervisión y Presupuesto</h6>
+                    <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
+                        <div class="col-md-6">
+                            <label class="small text-muted">SUPERVISOR</label>
+                            <input type="text" name="supervisor" value="{{ contrato.supervisor if contrato else '' }}" class="form-control text-uppercase">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted">NIVEL PROFESIONAL (Supervisor)</label>
+                            <select name="nivel_prof_supervisor" class="form-select text-uppercase">
+                                <option value="UNIVERSITARIO" {% if contrato and contrato.nivel_prof_supervisor == 'UNIVERSITARIO' %}selected{% endif %}>UNIVERSITARIO</option>
+                                <option value="DESPACHO" {% if contrato and contrato.nivel_prof_supervisor == 'DESPACHO' %}selected{% endif %}>DESPACHO</option>
+                                <option value="COORDINACION" {% if contrato and contrato.nivel_prof_supervisor == 'COORDINACION' %}selected{% endif %}>COORDINACION</option>
+                                <option value="N/A" {% if contrato and contrato.nivel_prof_supervisor == 'N/A' %}selected{% endif %}>N/A</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted">INTERVENTOR</label>
+                            <input type="text" name="interventor" value="{{ contrato.interventor if contrato else 'N/A' }}" class="form-control text-uppercase">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted">NIVEL PROFESIONAL (Interventor)</label>
+                            <input type="text" name="nivel_prof_interventor" value="{{ contrato.nivel_prof_interventor if contrato else 'N/A' }}" class="form-control text-uppercase">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-muted">CDP No.</label>
+                            <input type="text" name="cdp" value="{{ contrato.cdp if contrato else '' }}" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-muted">CRP No.</label>
+                            <input type="text" name="crp" value="{{ contrato.crp if contrato else '' }}" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-muted">IMPUTACIÓN PRESUPUESTAL</label>
+                            <input type="text" name="imputacion" value="{{ contrato.imputacion if contrato else '2.4.5.02.09.03.01' }}" class="form-control">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 fw-bold py-2 shadow-sm text-white">
+                        <i class="bi bi-save"></i> Guardar Contrato
+                    </button>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -21,6 +21,9 @@
         <div>
             <h5 class="card-title mb-1 text-dark"><i class="bi bi-cloud-upload text-primary"></i> Carga Masiva (Plantilla Excel/CSV)</h5>
             <small class="text-muted">Importa o actualiza múltiples contratos y pagos al mismo tiempo.</small>
+            <a href="/contrato/crear" class="btn btn-primary fw-bold shadow-sm">
+                <i class="bi bi-plus-circle"></i> Nuevo Contrato Manual
+            </a>
         </div>
         <form action="/importar_csv" method="POST" enctype="multipart/form-data" class="d-flex">
             <input type="file" name="archivo" class="form-control form-control-sm me-2" accept=".csv" required>

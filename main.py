@@ -8,6 +8,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from mangum import Mangum
 from jose import jwt, JWTError
+from services.pdf_generator import GeneradorPDF
+from fastapi.responses import Response
 
 # --- IMPORTACIONES MODULARES ---
 from core.database import engine, Base, get_db, SessionLocal
@@ -162,6 +164,69 @@ def dashboard(request: Request, mensaje: str = None, error: str = None, db: Sess
         }
     )
 
+
+@app.get("/contrato/crear", response_class=HTMLResponse)
+def crear_contrato_vista(request: Request, db: Session = Depends(get_db),
+                         current_user: DBUsuario = Depends(obtener_usuario_actual)):
+    """ Muestra el formulario en blanco para un nuevo contrato """
+    return templates.TemplateResponse(
+        request=request,
+        name="formulario_contrato.html",
+        context={
+            "request": request,
+            "contrato": None,
+            "usuario_actual": current_user
+        }
+    )
+
+
+@app.get("/contrato/editar_info/{numero_contrato:path}", response_class=HTMLResponse)
+def editar_contrato_vista(request: Request, numero_contrato: str, db: Session = Depends(get_db),
+                          current_user: DBUsuario = Depends(obtener_usuario_actual)):
+    """ Muestra el formulario lleno con los datos existentes """
+    tx = GestorTransacciones(db)
+    detalle = tx.obtener_detalle_contrato(numero_contrato)
+    if not detalle:
+        return RedirectResponse(url="/?error=Contrato no encontrado", status_code=303)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="formulario_contrato.html",
+        context={
+            "request": request,
+            "contrato": detalle["contrato"],
+            "usuario_actual": current_user
+        }
+    )
+
+
+@app.post("/contrato/guardar")
+async def registrar_contrato(request: Request, db: Session = Depends(get_db),
+                             current_user: DBUsuario = Depends(obtener_usuario_actual)):
+    form_data = dict(await request.form())
+
+    # Limpiador de moneda (Quita puntos, comas y signos $)
+    def limpiar_dinero(valor):
+        if not valor: return 0.0
+        val_str = str(valor).replace('$', '').replace(',', '').replace('.', '').strip()
+        try:
+            return float(val_str)
+        except:
+            return 0.0
+
+    form_data['valor_total'] = limpiar_dinero(form_data.get('valor_total'))
+    form_data['valor_final'] = limpiar_dinero(form_data.get('valor_final'))
+
+    # Si el valor final viene en 0, asume el valor total inicial
+    if form_data['valor_final'] == 0:
+        form_data['valor_final'] = form_data['valor_total']
+
+    tx = GestorTransacciones(db)
+    exito, mensaje = tx.crear_o_actualizar_contrato(form_data)
+
+    if exito:
+        return RedirectResponse(url=f"/contrato/{form_data['numero_contrato']}?mensaje={mensaje}", status_code=303)
+    return RedirectResponse(url=f"/?error={mensaje}", status_code=303)
 
 @app.get("/contrato/{numero_contrato:path}", response_class=HTMLResponse)
 def detalle_contrato(request: Request, numero_contrato: str, mensaje: str = None, error: str = None,
@@ -331,6 +396,23 @@ async def procesar_borrado_pago(pago_id: int, db: Session = Depends(get_db),
 
     estado = "mensaje" if exito else "error"
     return RedirectResponse(url=f"/contrato/{id_contrato}?{estado}={msg}", status_code=303)
+
+
+@app.get("/pago/pdf/{pago_id}")
+async def descargar_pdf_pago(pago_id: int, db: Session = Depends(get_db), current_user: DBUsuario = Depends(obtener_usuario_actual)):
+    generador = GeneradorPDF(db, templates)
+    pdf_bytes, nombre_archivo = await generador.generar_pdf_pago_unico(pago_id)
+    if not pdf_bytes:
+        return RedirectResponse(url="/?error=No se pudo generar el PDF", status_code=303)
+    return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'})
+
+@app.get("/contratista/{identificacion}/pdfs")
+async def descargar_pdfs_contratista(identificacion: str, db: Session = Depends(get_db), current_user: DBUsuario = Depends(obtener_usuario_actual)):
+    generador = GeneradorPDF(db, templates)
+    zip_buffer = await generador.generar_zip_contratista(identificacion)
+    return StreamingResponse(zip_buffer, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="Reportes_{identificacion}.zip"'})
+
+
 
 
 # Adaptador AWS

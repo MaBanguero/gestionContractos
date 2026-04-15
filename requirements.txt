@@ -8,3 +8,4 @@ python-jose[cryptography]
 pandas
 openpyxl
 mangum
+playwright
