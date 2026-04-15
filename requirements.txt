@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+jinja2
+python-multipart
+bcrypt
+python-jose[cryptography]
+pandas
+openpyxl
+mangum
+playwright

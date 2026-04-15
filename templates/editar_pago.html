@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="/contrato/{{ pago.contrato_id }}" class="text-decoration-none text-secondary">
+        <i class="bi bi-arrow-left"></i> Volver al Contrato
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-9">
+        <div class="card shadow border-0 border-top border-warning border-3 mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-warning"><i class="bi bi-pencil-square"></i> Edición Total: Pago #{{ pago.numero_pago }}</h5>
+                <span class="badge bg-dark">ID Interno: {{ pago.id }}</span>
+            </div>
+            <div class="card-body bg-light">
+
+                <form action="/pago/actualizar/{{ pago.id }}" method="POST">
+
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">1. Datos del Informe y Periodos</h6>
+                    <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-muted">Tipo de Informe</label>
+                            <select name="tipo_informe" class="form-select form-select-sm" id="tipo_informe_select">
+                                <option value="PARCIAL">PARCIAL</option>
+                                <option value="FINAL">FINAL</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">Periodo Desde</label>
+                            <input type="date" name="periodo_desde" value="{{ pago.periodo_desde }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">Periodo Hasta</label>
+                            <input type="date" name="periodo_hasta" value="{{ pago.periodo_hasta }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-danger">Fecha de Firma (Dado en...)</label>
+                            <input type="date" name="fecha_firma" value="{{ pago.fecha_firma }}"
+                                   class="form-control form-control-sm border-danger" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">Cuentas de Cobro</label>
+                            <input type="text" name="cuentas_cobro" value="{{ pago.cuentas_cobro or '' }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">Otro Si</label>
+                            <input type="text" name="otro_si" value="{{ pago.otro_si or '' }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-muted">Pago N° (No editable)</label>
+                            <input type="number" value="{{ pago.numero_pago }}" class="form-control form-control-sm text-center fw-bold" readonly>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">2. Valores Financieros</h6>
+                    <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
+                        <div class="col-md-6">
+                            <label class="small fw-bold text-primary">Valor a Pagar (Causado)</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                <input type="number" step="1" name="valor_a_pagar" value="{{ pago.valor_a_pagar }}" class="form-control fw-bold" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small fw-bold text-success">Valor Pagado (Girado)</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                <input type="number" step="1" name="valor_pagado" value="{{ pago.valor_pagado }}" class="form-control fw-bold" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">3. Seguridad Social y Parafiscales</h6>
+                    <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
+                        <div class="col-md-4">
+                            <label class="small text-muted">N° Planilla</label>
+                            <input type="text" name="planilla_no" value="{{ pago.planilla_no or '' }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">Periodo Cotizado</label>
+                            <input type="text" name="periodo_cotizado" value="{{ pago.periodo_cotizado or '' }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">IBC</label>
+                            <input type="number" step="1" name="ibc" value="{{ pago.ibc or 0 }}" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small text-muted">EPS</label>
+                            <select name="eps_nombre" class="form-select form-select-sm" id="eps_select" onchange="toggleOtro('eps')">
+                                <option value="ALIANSALUD">ALIANSALUD</option>
+                                <option value="ASMET SALUD">ASMET SALUD</option>
+                                <option value="CAJACOPI">CAJACOPI</option>
+                                <option value="CAPITAL SALUD">CAPITAL SALUD</option>
+                                <option value="COMFENALCO VALLE">COMFENALCO VALLE</option>
+                                <option value="COMPENSAR">COMPENSAR</option>
+                                <option value="COOSALUD">COOSALUD</option>
+                                <option value="EPS SANITAS">EPS SANITAS</option>
+                                <option value="FAMISANAR">FAMISANAR</option>
+                                <option value="MUTUAL SER">MUTUAL SER</option>
+                                <option value="NUEVA EPS">NUEVA EPS</option>
+                                <option value="SALUD TOTAL">SALUD TOTAL</option>
+                                <option value="SAVIA SALUD">SAVIA SALUD</option>
+                                <option value="SOS">SOS</option>
+                                <option value="SURA">SURA</option>
+                                <option value="OTRA">Otra (Escribir...)</option>
+                            </select>
+                            <input type="text" name="eps_nombre_otro" id="eps_otro" class="form-control form-control-sm mt-1" style="display:none;" placeholder="Escriba la EPS">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted">Valor EPS</label>
+                            <input type="number" step="1" name="eps_valor" id="val_eps" value="{{ pago.eps_valor or 0 }}" class="form-control form-control-sm" onkeyup="calcularTotal()">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small text-muted">ARL</label>
+                            <select name="arl_nombre" class="form-select form-select-sm" id="arl_select" onchange="toggleOtro('arl')">
+                                <option value="ALFA">ALFA</option>
+                                <option value="AURORA">AURORA</option>
+                                <option value="BOLIVAR">BOLÍVAR</option>
+                                <option value="COLMENA">COLMENA</option>
+                                <option value="EQUIDAD">EQUIDAD</option>
+                                <option value="MAPFRE">MAPFRE</option>
+                                <option value="POSITIVA">POSITIVA</option>
+                                <option value="SURA">SURA</option>
+                                <option value="OTRA">Otra (Escribir...)</option>
+                            </select>
+                            <input type="text" name="arl_nombre_otro" id="arl_otro" class="form-control form-control-sm mt-1" style="display:none;" placeholder="Escriba la ARL">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted">Valor ARL</label>
+                            <input type="number" step="1" name="arl_valor" id="val_arl" value="{{ pago.arl_valor or 0 }}" class="form-control form-control-sm" onkeyup="calcularTotal()">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small text-muted">AFP</label>
+                            <select name="afp_nombre" class="form-select form-select-sm" id="afp_select" onchange="toggleOtro('afp')">
+                                <option value="COLPENSIONES">COLPENSIONES</option>
+                                <option value="PORVENIR">PORVENIR</option>
+                                <option value="PROTECCION">PROTECCIÓN</option>
+                                <option value="COLFONDOS">COLFONDOS</option>
+                                <option value="SKANDIA">SKANDIA</option>
+                                <option value="OTRA">Otra (Escribir...)</option>
+                            </select>
+                            <input type="text" name="afp_nombre_otro" id="afp_otro" class="form-control form-control-sm mt-1" style="display:none;" placeholder="Escriba la AFP">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted">Valor AFP</label>
+                            <input type="number" step="1" name="afp_valor" id="val_afp" value="{{ pago.afp_valor or 0 }}" class="form-control form-control-sm" onkeyup="calcularTotal()">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small text-muted">SENA</label>
+                            <input type="number" step="1" name="sena_valor" id="val_sena" value="{{ pago.sena_valor or 0 }}" class="form-control form-control-sm" onkeyup="calcularTotal()">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted">ICBF</label>
+                            <input type="number" step="1" name="icbf_valor" id="val_icbf" value="{{ pago.icbf_valor or 0 }}" class="form-control form-control-sm" onkeyup="calcularTotal()">
+                        </div>
+
+                        <div class="col-12 mt-3">
+                            <div class="bg-dark text-white p-2 rounded d-flex justify-content-between align-items-center">
+                                <span class="fw-bold small text-uppercase">Total Planilla:</span>
+                                <input type="number" name="valor_total_planilla" id="total_planilla" value="{{ pago.valor_total_planilla or 0 }}" class="form-control form-control-sm text-end fw-bold bg-transparent text-white border-0 w-50" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">4. Actividades y Control</h6>
+                    <div class="bg-white p-3 rounded shadow-sm mb-4">
+                        <div class="mb-3">
+                            <label class="small text-muted fw-bold">Actividades Ejecutadas</label>
+                            <textarea name="actividades" class="form-control form-control-sm" rows="3">{{ pago.actividades or '' }}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="small text-muted fw-bold">Observaciones Generales</label>
+                            <textarea name="observaciones" class="form-control form-control-sm border-warning" rows="3">{{ pago.observaciones or '' }}</textarea>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="small text-muted fw-bold">Act.</label>
+                                <input type="text" name="act" value="{{ pago.act or '' }}" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-6">
+                                <label class="small text-muted fw-bold">N° Folios</label>
+                                <input type="text" name="folios" value="{{ pago.folios or '' }}" class="form-control form-control-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-warning fw-bold py-2 shadow-sm text-dark">
+                            <i class="bi bi-save"></i> Guardar Todos los Cambios
+                        </button>
+                        <a href="/contrato/{{ pago.contrato_id }}" class="btn btn-light btn-sm text-muted">Cancelar y Salir</a>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleOtro(tipo) {
+        let select = document.getElementById(tipo + '_select');
+        let input = document.getElementById(tipo + '_otro');
+        input.style.display = (select.value === 'OTRA') ? 'block' : 'none';
+    }
+
+    function calcularTotal() {
+        let eps = parseInt(document.getElementById('val_eps').value) || 0;
+        let arl = parseInt(document.getElementById('val_arl').value) || 0;
+        let afp = parseInt(document.getElementById('val_afp').value) || 0;
+        let sena = parseInt(document.getElementById('val_sena').value) || 0;
+        let icbf = parseInt(document.getElementById('val_icbf').value) || 0;
+        document.getElementById('total_planilla').value = eps + arl + afp + sena + icbf;
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        // Auto-selección del Tipo de Informe
+        document.getElementById('tipo_informe_select').value = '{{ pago.tipo_informe }}';
+
+        function setSelectValue(selectId, inputId, dbValue) {
+            if (!dbValue) return;
+            let select = document.getElementById(selectId);
+            let input = document.getElementById(inputId);
+            let existeEnLista = Array.from(select.options).some(opt => opt.value === dbValue);
+
+            if (existeEnLista) {
+                select.value = dbValue;
+            } else {
+                select.value = "OTRA";
+                input.style.display = "block";
+                input.value = dbValue;
+            }
+        }
+
+        setSelectValue('eps_select', 'eps_otro', '{{ pago.eps_nombre }}');
+        setSelectValue('arl_select', 'arl_otro', '{{ pago.arl_nombre }}');
+        setSelectValue('afp_select', 'afp_otro', '{{ pago.afp_nombre }}');
+    });
+</script>
+{% endblock %}

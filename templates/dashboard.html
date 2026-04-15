@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-7">
+        <h2 class="text-secondary"><i class="bi bi-folder2-open"></i> Gestión de Contratos</h2>
+        <p class="text-muted">Administra el saldo y la ejecución financiera de todos los contratistas.</p>
+    </div>
+    <div class="col-md-5 text-end">
+        <a href="/exportar_excel" class="btn btn-success shadow-sm me-2">
+            <i class="bi bi-file-earmark-excel"></i> Exportar Base Completa
+        </a>
+        <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoContrato">
+            <i class="bi bi-plus-lg"></i> Nuevo Contrato
+        </button>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4 bg-white">
+    <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="card-title mb-1 text-dark"><i class="bi bi-cloud-upload text-primary"></i> Carga Masiva (Plantilla Excel/CSV)</h5>
+            <small class="text-muted">Importa o actualiza múltiples contratos y pagos al mismo tiempo.</small>
+            <a href="/contrato/crear" class="btn btn-primary fw-bold shadow-sm">
+                <i class="bi bi-plus-circle"></i> Nuevo Contrato Manual
+            </a>
+        </div>
+        <form action="/importar_csv" method="POST" enctype="multipart/form-data" class="d-flex">
+            <input type="file" name="archivo" class="form-control form-control-sm me-2" accept=".csv" required>
+            <button type="submit" class="btn btn-outline-dark btn-sm px-4">Subir Data</button>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Contratista</th>
+                        <th>N° Contrato</th>
+                        <th>Valor Total</th>
+                        <th>Progreso Financiero (Pagado vs Saldo)</th>
+                        <th class="text-center">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in contratos %}
+                    <tr>
+                        <td class="ps-4 fw-bold text-secondary">{{ c.contratista }}</td>
+                        <td><span class="badge bg-secondary">{{ c.numero_contrato }}</span></td>
+                        <td>${{ "{:,.0f}".format(c.valor_total) }}</td>
+                        <td style="width: 30%;">
+                            <div class="d-flex justify-content-between mb-1" style="font-size: 0.8rem;">
+                                <span>Pagado: <b class="text-success">${{ "{:,.0f}".format(c.total_pagado) }}</b></span>
+                                <span>Saldo: <b class="text-danger">${{ "{:,.0f}".format(c.saldo) }}</b></span>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar {% if c.porcentaje_pagado == 100 %}bg-success{% else %}bg-primary{% endif %}"
+                                     role="progressbar" style="width: {{ c.porcentaje_pagado }}%;"></div>
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            <a href="/contrato/{{ c.numero_contrato }}" class="btn btn-sm btn-dark">Gestionar <i class="bi bi-arrow-right-short"></i></a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="text-center py-5 text-muted">No hay contratos registrados. Sube tu CSV para comenzar.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNuevoContrato" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">Registrar Nuevo Contrato</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form action="/contrato/nuevo" method="POST">
+          <div class="modal-body">
+              <div class="mb-3"><label class="form-label">Cédula / NIT</label><input type="text" name="identificacion" class="form-control" required></div>
+              <div class="mb-3"><label class="form-label">Nombre del Contratista</label><input type="text" name="nombre" class="form-control" required></div>
+              <div class="mb-3"><label class="form-label">N° de Contrato (Ej: 024 de 2026)</label><input type="text" name="numero_contrato" class="form-control" required></div>
+              <div class="row">
+                  <div class="col-6 mb-3"><label class="form-label">Valor Total ($)</label><input type="number" step="0.01" name="valor_total" class="form-control" required></div>
+                  <div class="col-6 mb-3"><label class="form-label">Fecha Inicio</label><input type="date" name="fecha_inicio" class="form-control" required></div>
+              </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar Contrato</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
