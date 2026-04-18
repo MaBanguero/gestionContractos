@@ -16,7 +16,8 @@ class GestorTransacciones:
         contratos = self.db.query(DBContrato).all()
         lista = []
         for c in contratos:
-            total_pagado = sum(p.valor_pagado for p in c.pagos)
+            pagos_ordenados = sorted(c.pagos, key=lambda x: x.numero_pago)
+            total_pagado = sum((p.valor_a_pagar or 0) for p in pagos_ordenados[:-1]) if pagos_ordenados else 0
             porcentaje = (total_pagado / c.valor_total * 100) if c.valor_total > 0 else 0
             lista.append({
                 "numero_contrato": c.numero_contrato,
