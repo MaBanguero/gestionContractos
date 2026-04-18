@@ -399,19 +399,20 @@ async def procesar_borrado_pago(pago_id: int, db: Session = Depends(get_db),
 
 
 @app.get("/pago/pdf/{pago_id}")
-async def descargar_pdf_pago(pago_id: int, db: Session = Depends(get_db), current_user: DBUsuario = Depends(obtener_usuario_actual)):
+def descargar_pdf_pago(pago_id: int, db: Session = Depends(get_db), current_user: DBUsuario = Depends(obtener_usuario_actual)):
     generador = GeneradorPDF(db, templates)
-    pdf_bytes, nombre_archivo = await generador.generar_pdf_pago_unico(pago_id)
+    # Sin await aquí
+    pdf_bytes, nombre_archivo = generador.generar_pdf_pago_unico(pago_id)
     if not pdf_bytes:
         return RedirectResponse(url="/?error=No se pudo generar el PDF", status_code=303)
     return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'})
 
 @app.get("/contratista/{identificacion}/pdfs")
-async def descargar_pdfs_contratista(identificacion: str, db: Session = Depends(get_db), current_user: DBUsuario = Depends(obtener_usuario_actual)):
+def descargar_pdfs_contratista(identificacion: str, db: Session = Depends(get_db), current_user: DBUsuario = Depends(obtener_usuario_actual)):
     generador = GeneradorPDF(db, templates)
-    zip_buffer = await generador.generar_zip_contratista(identificacion)
+    # Sin await aquí
+    zip_buffer = generador.generar_zip_contratista(identificacion)
     return StreamingResponse(zip_buffer, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="Reportes_{identificacion}.zip"'})
-
 
 
 

@@ -36,6 +36,11 @@
                             <input type="date" name="periodo_hasta" value="{{ pago.periodo_hasta }}" class="form-control form-control-sm">
                         </div>
                         <div class="col-md-4">
+                            <label class="small fw-bold text-danger">Fecha de Firma (Dado en...)</label>
+                            <input type="date" name="fecha_firma" value="{{ pago.fecha_firma }}"
+                                   class="form-control form-control-sm border-danger" required>
+                        </div>
+                        <div class="col-md-4">
                             <label class="small text-muted">Cuentas de Cobro</label>
                             <input type="text" name="cuentas_cobro" value="{{ pago.cuentas_cobro or '' }}" class="form-control form-control-sm">
                         </div>
@@ -238,3 +243,4 @@
         setSelectValue('afp_select', 'afp_otro', '{{ pago.afp_nombre }}');
     });
 </script>
+{% endblock %}

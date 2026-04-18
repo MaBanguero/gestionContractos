@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from sqlalchemy.orm import Session
 from fastapi.templating import Jinja2Templates
-from playwright.async_api import async_playwright
+from playwright.sync_api import sync_playwright
 from models.db_models import DBPago, DBContratista
 
 # --- DICCIONARIO DE ACTIVIDADES ORIGINAL ---
@@ -317,15 +317,12 @@ class GeneradorPDF:
             return "GESTOR COMUNITARIO"
         return p
 
-        # --- NUEVO: TRADUCTOR DE FECHAS A ESPAÑOL ---
+        # Función para formatear fechas a español ("02 de febrero de 2026")
 
     def _formatear_fecha_es(self, fecha_raw):
         if not fecha_raw: return ""
         try:
-            if isinstance(fecha_raw, str):
-                d = datetime.strptime(fecha_raw, '%Y-%m-%d')
-            else:
-                d = fecha_raw
+            d = datetime.strptime(fecha_raw, '%Y-%m-%d') if isinstance(fecha_raw, str) else fecha_raw
             meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
                      'noviembre', 'diciembre']
             return f"{d.strftime('%d')} de {meses[d.month - 1]} de {d.strftime('%Y')}"
@@ -336,34 +333,7 @@ class GeneradorPDF:
         c = pago.contrato
         contratista = c.contratista
 
-        # 1. TEXTO DINÁMICO DE OBSERVACIONES BASADO EN PERIODO_DESDE Y PERIODO_HASTA
-        desde_str = self._formatear_fecha_es(pago.periodo_desde)
-        hasta_str = self._formatear_fecha_es(pago.periodo_hasta)
-        periodo_texto = f"comprendido entre el {desde_str} y el {hasta_str}" if desde_str and hasta_str else "evaluado"
-
-        texto_descuento_dinamico = (
-            f"Verificados los informes de actividades, soportes y demás evidencias presentadas por el CONTRATISTA, "
-            f"se evidencia cumplimiento parcial de las obligaciones contractuales correspondientes al periodo {periodo_texto}, "
-            f"conforme a lo establecido en el contrato y en el plan de actividades aprobado.\n\n"
-            "En razón a que no se ejecutó la totalidad de las actividades previstas para el periodo evaluado, desde la supervisión "
-            "se aplica el descuento proporcional correspondiente sobre el valor de la cuenta de cobro, de acuerdo con las actividades "
-            "efectivamente desarrolladas y soportadas.\n\nEn consecuencia, se autoriza el trámite de pago por el valor ajustado.\n\n"
-            "Finalmente, se recomienda al CONTRATISTA mantener vigente su afiliación al Sistema General de Seguridad Social Integral "
-            "y efectuar oportunamente los aportes correspondientes, en cumplimiento de la normativa vigente y de las obligaciones contractuales asumidas."
-        )
-
-        texto_sin_descuento_dinamico = (
-            f"Una vez verificados los informes de actividades, soportes allegados y demás evidencias presentadas por el CONTRATISTA, "
-            f"se constata el cumplimiento de las obligaciones contractuales correspondientes al periodo {periodo_texto}, "
-            f"conforme a lo establecido en el contrato y en el plan de actividades aprobado para su ejecución.\n\n"
-            "En consecuencia, desde la supervisión se conceptúa favorablemente el cumplimiento de las actividades desarrolladas y se autoriza "
-            "el trámite de pago de la cuenta de cobro presentada, por encontrarse acorde con lo pactado contractual y debidamente soportada.\n\n"
-            "No obstante, se recomienda al CONTRATISTA mantener vigente su afiliación a las administradoras del Sistema General de Seguridad Social Integral, "
-            "así como continuar efectuando de manera oportuna los aportes correspondientes, en cumplimiento de lo dispuesto en la normativa vigente aplicable "
-            "y de las obligaciones contractuales asumidas."
-        )
-
-        # 2. LÓGICA DE FIRMAS Y VALORES
+        # 1. Lógica Financiera
         valor_base = c.valor_final if c.valor_final else c.valor_total
         causado_hasta_hoy = sum((pg.valor_a_pagar or 0) for pg in c.pagos if pg.numero_pago <= pago.numero_pago)
         saldo_a_pagar = valor_base - causado_hasta_hoy
@@ -371,28 +341,30 @@ class GeneradorPDF:
 
         supervisores = str(c.supervisor or "")
         firmas = [f.strip() for f in supervisores.replace('#', '-').split('-') if f.strip()]
-        if not firmas: firmas = [supervisores]
+        if not firmas:
+            firmas = [supervisores]
 
-        # 3. LÓGICA DE LA FECHA ESPECÍFICA "DADO EN..."
+        # 2. FECHA DE FIRMA DINÁMICA (Leída de la DB)
+        # Intentamos obtener la fecha guardada en el pago. Si no existe, usamos la fecha actual.
         fecha_firma_raw = getattr(pago, 'fecha_firma', None)
         if fecha_firma_raw:
             try:
-                hoy = datetime.strptime(fecha_firma_raw, '%Y-%m-%d') if isinstance(fecha_firma_raw,
-                                                                                   str) else fecha_firma_raw
-            except:
+                # Manejamos si llega como string 'YYYY-MM-DD' o como objeto date/datetime
+                if isinstance(fecha_firma_raw, str):
+                    hoy = datetime.strptime(fecha_firma_raw, '%Y-%m-%d')
+                else:
+                    hoy = fecha_firma_raw
+            except Exception:
                 hoy = datetime.now()
         else:
-            # Si dejaron el campo vacío, usamos HOY como respaldo
             hoy = datetime.now()
 
-        meses_espanol = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre',
-                         'octubre', 'noviembre', 'diciembre']
+        meses_espanol = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
-        # Limpiar texto del perfil
+        # 3. Normalización de Perfil y Actividades
         perfil_db = str(c.perfil or "")
         perfil_clean = self._normalizar_perfil(perfil_db)
-        actividades_texto = ACTIVIDADES_POR_PERFIL.get(perfil_clean,
-                                                       [f"Actividades según contrato (Perfil detectado: {perfil_db})"])
+        actividades_texto = ACTIVIDADES_POR_PERFIL.get(perfil_clean, [f"Actividades según contrato (Perfil detectado: {perfil_db})"])
 
         honorario_esperado = HONORARIOS_POR_PERFIL.get(perfil_clean, 0)
         indice_meta = ACTIVIDAD_META_POR_PERFIL.get(perfil_clean, -1)
@@ -413,12 +385,12 @@ class GeneradorPDF:
                 "cumple": cumple_esta_actividad
             })
 
-        observaciones_db = str(pago.observaciones or "").strip()
-        if not observaciones_db:
-            observacion_final = texto_descuento_dinamico if not cumple_todo else texto_sin_descuento_dinamico
-        else:
-            observacion_final = observaciones_db
+        # 4. Observaciones directas del formulario
+        observacion_final = str(pago.observaciones or "").strip()
+        if not observacion_final:
+            observacion_final = "No se registraron observaciones adicionales."
 
+        # 5. Construcción del diccionario para el PDF
         informe = {
             "tipo_informe": pago.tipo_informe or "PARCIAL",
             "numero_contrato": c.numero_contrato,
@@ -443,7 +415,7 @@ class GeneradorPDF:
             "fecha_fin": c.fecha_terminacion,
             "tiempo_adicion": c.tiempo_adicion or "N/A",
             "valor_final": c.valor_final or c.valor_total,
-            "forma_pago": c.forma_pago,
+            "forma_pago": c.forma_pago or "No especificada.", # Tomado del contrato
             "numero_pago": pago.numero_pago,
             "valor_a_pagar": valor_a_pagar_actual,
             "otro_si": pago.otro_si or 0,
@@ -466,29 +438,30 @@ class GeneradorPDF:
             "objeto_contrato": c.objeto,
             "observaciones": observacion_final,
             "folios": pago.folios or '0',
-            "dia_firma": hoy.strftime('%d'),  # <-- La fecha exacta que seleccionaste
-            "mes_firma": meses_espanol[hoy.month - 1],  # <-- Traducida
-            "anio_firma": hoy.strftime('%Y')
+            "dia_firma": hoy.strftime('%d'),               # Día de la DB
+            "mes_firma": meses_espanol[hoy.month - 1],     # Mes traducido
+            "anio_firma": hoy.strftime('%Y')               # Año de la DB
         }
 
         return informe, actividades_finales, firmas
 
-    async def _render_html_to_pdf(self, html_content: str) -> bytes:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.set_content(html_content)
-            await page.wait_for_load_state("networkidle")
-
-            pdf_bytes = await page.pdf(
+    # 2. SE ELIMINA EL "async" DE ESTA FUNCIÓN
+    def _render_html_to_pdf(self, html_content: str) -> bytes:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.set_content(html_content)
+            page.wait_for_load_state("networkidle")
+            pdf_bytes = page.pdf(
                 format="Letter",
                 print_background=True,
                 margin={"top": "0.3in", "right": "0.3in", "bottom": "0.3in", "left": "0.3in"}
             )
-            await browser.close()
+            browser.close()
             return pdf_bytes
 
-    async def generar_pdf_pago_unico(self, pago_id: int) -> tuple[bytes, str]:
+    # 3. SE ELIMINA EL "async" Y LOS "await" DE ESTA FUNCIÓN
+    def generar_pdf_pago_unico(self, pago_id: int) -> tuple[bytes, str]:
         pago = self.db.query(DBPago).filter(DBPago.id == pago_id).first()
         if not pago: return None, None
 
@@ -497,19 +470,16 @@ class GeneradorPDF:
                   "Certificado de ARL"]
 
         html_content = self.templates.get_template("imprimir_supervision.html").render(
-            informe=informe,
-            actividades=actividades,
-            anexos=anexos,
-            firmas=firmas,
-            logo_b64=self._obtener_logo_b64()
+            informe=informe, actividades=actividades, anexos=anexos, firmas=firmas, logo_b64=self._obtener_logo_b64()
         )
 
-        pdf_bytes = await self._render_html_to_pdf(html_content)
+        pdf_bytes = self._render_html_to_pdf(html_content)
         nombre_archivo = f"Supervision_Contrato_{informe['numero_contrato']}_Pago_{informe['numero_pago']}.pdf"
         nombre_limpio = re.sub(r'[\\/*?:"<>|]', '_', nombre_archivo)
         return pdf_bytes, nombre_limpio
 
-    async def generar_zip_contratista(self, identificacion: str) -> io.BytesIO:
+    # 4. SE ELIMINA EL "async" Y LOS "await" DE ESTA FUNCIÓN
+    def generar_zip_contratista(self, identificacion: str) -> io.BytesIO:
         pagos = self.db.query(DBPago).join(DBPago.contrato).filter(
             DBPago.contrato.has(contratista_id=identificacion)
         ).all()
@@ -517,7 +487,7 @@ class GeneradorPDF:
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for pago in pagos:
-                pdf_bytes, nombre_archivo = await self.generar_pdf_pago_unico(pago.id)
+                pdf_bytes, nombre_archivo = self.generar_pdf_pago_unico(pago.id)
                 if pdf_bytes:
                     zip_file.writestr(nombre_archivo, pdf_bytes)
 

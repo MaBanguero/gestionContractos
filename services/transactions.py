@@ -37,37 +37,30 @@ class GestorTransacciones:
             DBPago.numero_pago.asc()).all()
 
         pagos_con_acumulado = []
+        acumulado_progresivo = 0
         total_causado_acumulado = 0
-        ultimo_valor_girado = 0  # Esta variable controlará el total real pagado
 
         for p in pagos_db:
-            # REGLA DE NEGOCIO: El valor girado en este periodo es exactamente
-            # lo que se había causado ANTES de registrar este pago.
-            girado_en_este_periodo = total_causado_acumulado
-
-            # Ahora sí, sumamos lo causado en este periodo al acumulado
-            total_causado_acumulado += (p.valor_a_pagar or 0)
+            acumulado_progresivo += p.valor_pagado
+            total_causado_acumulado += p.valor_a_pagar
 
             pago_dict = {
                 "id": p.id,
                 "numero_pago": p.numero_pago,
                 "periodo_cotizado": p.periodo_cotizado,
                 "planilla_no": p.planilla_no,
-                "valor_a_pagar": int(p.valor_a_pagar or 0),
-                "valor_pagado_progresivo": int(girado_en_este_periodo),  # ¡Adiós al doble conteo!
-                "valor_total_planilla": int(p.valor_total_planilla or 0),
+                "valor_a_pagar": int(p.valor_a_pagar),
+                "valor_pagado_progresivo": int(acumulado_progresivo),
+                "valor_total_planilla": int(p.valor_total_planilla),
                 "observaciones": p.observaciones
             }
             pagos_con_acumulado.append(pago_dict)
 
-            # Guardamos el último valor girado para enviarlo al Widget del Dashboard
-            ultimo_valor_girado = girado_en_este_periodo
-
+        # LÓGICA DE SALDO DISPONIBLE CORREGIDA
         valor_base_contrato = contrato.valor_final if contrato.valor_final else contrato.valor_total
         saldo_presupuestal = valor_base_contrato - total_causado_acumulado
 
-        # Sugerencia giro es lo causado que aún no se ha girado (generalmente el último pago)
-        sugerencia_giro = total_causado_acumulado - ultimo_valor_girado
+        sugerencia_giro = total_causado_acumulado - acumulado_progresivo
         proximo_pago = (pagos_db[-1].numero_pago + 1) if pagos_db else 1
 
         porcentaje = (total_causado_acumulado / valor_base_contrato * 100) if valor_base_contrato > 0 else 0
@@ -75,7 +68,7 @@ class GestorTransacciones:
         return {
             "contrato": contrato,
             "pagos": pagos_con_acumulado,
-            "total_pagado": int(ultimo_valor_girado),  # Este corrige el widget superior
+            "total_pagado": int(acumulado_progresivo),
             "saldo": int(saldo_presupuestal),
             "porcentaje": round(porcentaje, 1),
             "proximo_pago": proximo_pago,

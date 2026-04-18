@@ -75,6 +75,17 @@
                             <label class="small text-muted">OBJETO DEL CONTRATO</label>
                             <textarea name="objeto" class="form-control text-uppercase" rows="3" required>{{ contrato.objeto if contrato else '' }}</textarea>
                         </div>
+                        <div class="col-md-12 mt-3">
+                            <label class="small fw-bold text-success mb-1"><i class="bi bi-bank"></i> Plantilla: Forma
+                                de Pago</label>
+                            <select id="selector_forma_pago" class="form-select form-select-sm border-success mb-2"
+                                    onchange="cargarPlantillaPago()">
+                                <option value="">-- Usar texto personalizado --</option>
+                                <option value="estandar">Dos Cuotas Parciales (Ley 80/93)</option>
+                            </select>
+                            <textarea name="forma_pago" id="forma_pago_textarea" class="form-control" rows="4"
+                                      required>{{ contrato.forma_pago if contrato else '' }}</textarea>
+                        </div>
                         <div class="col-md-4">
                             <label class="small text-muted">UNIDAD DE ATENCION</label>
                             <input type="text" name="unidad_atencion" value="{{ contrato.unidad_atencion if contrato else 'PUERTO TEJADA' }}" class="form-control text-uppercase">
@@ -171,4 +182,15 @@
         </div>
     </div>
 </div>
+    <script>
+    const textoPagoEstandar = `La Empresa Social del Estado Norte 3, pagará al CONTRATISTA el valor total del contrato en tres (3) cuotas mensuales vencidas, conforme al cumplimiento de las metas establecidas, los procesos contratados y debidamente facturados. El pago estará sujeto al trámite administrativo correspondiente y, se efectuará previa presentación de factura electrónica que cumpla con los requisitos legales exigidos por la dirección de impuestos y aduanas nacionales (DIAN), certificación del pago de aportes al Sistema General de Seguridad Social en Integral (salud, pensiones y riesgos laborales), conforme a lo dispuesto en la ley 100 de 1993 y demás normas complementarias, soporte de pago de aportes parafiscales a SENA, ICBF y CCF, cuando corresponda, en cumplimiento del artículo 50 de la ley 789 de 2002, informe detallado de actividades realizadas suscrito por el contratista, informe de supervisión suscrito por el supervisor del contrato, en el cual se certifique el cumplimiento de las obligaciones contractuales, constancia de recibo a satisfacción firmada por la persona encargada de la vigilancia del contrato y/o el supervisor designado. A la orden de pago, se le aplicarán los descuentos de ley y el valor neto obtenido se cancelará una vez cumplidos los trámites administrativos establecidos por la Empresa Social del Estado Norte 3. no obstante, la entidad se reserva el derecho de descontar del valor facturado, cualquier monto correspondiente a actividades que no cuenten con el debido soporte de prestación efectiva del servicio o que no hayan sido debidamente autorizadas. El supervisor del contrato será el responsable de verificar el cumplimiento de estas obligaciones, de conformidad con lo dispuesto en el artículo 83 de la ley 1474 de 2011.`;
+
+    function cargarPlantillaPago() {
+        const selector = document.getElementById('selector_forma_pago').value;
+        const textarea = document.getElementById('forma_pago_textarea');
+        if (selector === 'estandar') {
+            textarea.value = textoPagoEstandar;
+        }
+    }
+</script>
 {% endblock %}
