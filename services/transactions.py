@@ -195,7 +195,7 @@ class GestorTransacciones:
         return df
 
     def importar_datos_csv(self, contenido_csv: str):
-        """ Procesa el archivo CSV e inserta/actualiza TODAS las columnas modularmente """
+        """ Procesa el archivo CSV e inserta/actualiza usando Caché en Memoria (Upsert Seguro) """
         reader = csv.DictReader(io.StringIO(contenido_csv))
         registros = 0
 
@@ -211,117 +211,137 @@ class GestorTransacciones:
                 elif ',' in s:
                     s = s.replace(',', '.')
                 return float(s)
-            except Exception as e:
+            except Exception:
                 return 0.0
+
+        def clean_id(val):
+            """ Limpia identificaciones de Excel para evitar el '.0' fantasma """
+            s = str(val).strip()
+            if s.endswith('.0'): return s[:-2]
+            return s
+
+        # --- MAGIA SENIOR: Cargar todo en memoria para evitar errores de tipo en SQLite ---
+        cache_contratistas = {clean_id(c.identificacion): c for c in self.db.query(DBContratista).all()}
+        cache_contratos = {clean_id(c.numero_contrato): c for c in self.db.query(DBContrato).all()}
+        cache_pagos = {f"{clean_id(p.contrato_id)}_{p.numero_pago}": p for p in self.db.query(DBPago).all()}
 
         for row_cruda in reader:
             try:
-                # --- MAGIA SENIOR: Limpiar espacios invisibles y caracteres BOM de Excel ---
-                row = {str(k).replace('\ufeff', '').strip(): v for k, v in row_cruda.items() if k is not None}
-                # -------------------------------------------------------------------------------
+                # 1. Limpieza extrema y obligatoria de cada celda del Excel
+                row = {}
+                for k, v in row_cruda.items():
+                    if k is not None:
+                        clean_k = str(k).replace('\ufeff', '').strip()
+                        clean_v = str(v).strip() if v is not None else ""
+                        row[clean_k] = clean_v
 
-                identificacion = str(row.get('No. DE IDENTIFICACIÓN', '')).strip()
-                numero_contrato = str(row.get('N° DE CONTRATO', '')).strip()
+                identificacion = clean_id(row.get('No. DE IDENTIFICACIÓN', ''))
+                numero_contrato = clean_id(row.get('N° DE CONTRATO', ''))
 
                 if not identificacion or not numero_contrato:
                     continue
 
-                # --- 1. UPSERT CONTRATISTA ---
-                contratista = self.db.query(DBContratista).filter(
-                    DBContratista.identificacion == identificacion).first()
-                if not contratista:
+                # --- 2. UPSERT CONTRATISTA (Usando el Caché) ---
+                if identificacion in cache_contratistas:
+                    contratista = cache_contratistas[identificacion]
+                else:
                     contratista = DBContratista(identificacion=identificacion)
                     self.db.add(contratista)
+                    cache_contratistas[identificacion] = contratista
 
-                if row.get('NOMBRE CONTRATISTA'): contratista.nombre = row.get('NOMBRE CONTRATISTA', '')
-                if row.get('EXPEDIDA EN'): contratista.expedida_en = row.get('EXPEDIDA EN', '')
-                if row.get('No. TELÉFONO y/o CELULAR'): contratista.telefono = row.get('No. TELÉFONO y/o CELULAR', '')
-                if row.get('DIRECCION'): contratista.direccion = row.get('DIRECCION', '')
-                if row.get('TIPO DE PERSONA'): contratista.tipo_persona = row.get('TIPO DE PERSONA', '')
+                # Asignación segura de datos (Solo si vienen llenos desde el Excel)
+                if row.get('NOMBRE CONTRATISTA'): contratista.nombre = row.get('NOMBRE CONTRATISTA')
+                if row.get('EXPEDIDA EN'): contratista.expedida_en = row.get('EXPEDIDA EN')
+                if row.get('No. TELÉFONO y/o CELULAR'): contratista.telefono = row.get('No. TELÉFONO y/o CELULAR')
+                if row.get('DIRECCION'): contratista.direccion = row.get('DIRECCION')
+                if row.get('TIPO DE PERSONA'): contratista.tipo_persona = row.get('TIPO DE PERSONA')
 
-                # --- 2. UPSERT CONTRATO ---
-                contrato = self.db.query(DBContrato).filter(DBContrato.numero_contrato == numero_contrato).first()
-                if not contrato:
+                # --- 3. UPSERT CONTRATO (Usando el Caché) ---
+                if numero_contrato in cache_contratos:
+                    contrato = cache_contratos[numero_contrato]
+                    contrato.contratista_id = identificacion
+                else:
                     contrato = DBContrato(numero_contrato=numero_contrato, contratista_id=identificacion)
                     self.db.add(contrato)
-                else:
-                    contrato.contratista_id = identificacion
+                    cache_contratos[numero_contrato] = contrato
 
                 if row.get('VALOR TOTAL DEL CONTRATO'): contrato.valor_total = parse_float(
-                    row.get('VALOR TOTAL DEL CONTRATO', 0))
+                    row.get('VALOR TOTAL DEL CONTRATO'))
                 if row.get('FECHA DE INICIO DEL CONTRATO'): contrato.fecha_inicio = row.get(
-                    'FECHA DE INICIO DEL CONTRATO', '')
+                    'FECHA DE INICIO DEL CONTRATO')
                 if row.get('FECHA TERMINACION DEL CONTRATO'): contrato.fecha_terminacion = row.get(
-                    'FECHA TERMINACION DEL CONTRATO', '')
-                if row.get('CÓDIGO CIIU'): contrato.codigo_ciiu = row.get('CÓDIGO CIIU', '')
-                if row.get('SUPERVISOR'): contrato.supervisor = row.get('SUPERVISOR', '')
+                    'FECHA TERMINACION DEL CONTRATO')
+                if row.get('CÓDIGO CIIU'): contrato.codigo_ciiu = row.get('CÓDIGO CIIU')
+                if row.get('SUPERVISOR'): contrato.supervisor = row.get('SUPERVISOR')
                 if row.get('NIVEL PROFESIONAL SUPERVISOR'): contrato.nivel_prof_supervisor = row.get(
-                    'NIVEL PROFESIONAL SUPERVISOR', '')
-                if row.get('INTERVENTOR'): contrato.interventor = row.get('INTERVENTOR', '')
+                    'NIVEL PROFESIONAL SUPERVISOR')
+                if row.get('INTERVENTOR'): contrato.interventor = row.get('INTERVENTOR')
                 if row.get('NIVEL PROFESIONAL INTERVENTOR'): contrato.nivel_prof_interventor = row.get(
-                    'NIVEL PROFESIONAL INTERVENTOR', '')
-                if row.get('CDP  No.'): contrato.cdp = row.get('CDP  No.', '')
-                if row.get('CRP No.'): contrato.crp = row.get('CRP No.', '')
-                if row.get('IMPUTACIÓN PRESUPUESTAL'): contrato.imputacion = row.get('IMPUTACIÓN PRESUPUESTAL', '')
+                    'NIVEL PROFESIONAL INTERVENTOR')
+                if row.get('CDP  No.'): contrato.cdp = row.get('CDP  No.')
+                if row.get('CRP No.'): contrato.crp = row.get('CRP No.')
+                if row.get('IMPUTACIÓN PRESUPUESTAL'): contrato.imputacion = row.get('IMPUTACIÓN PRESUPUESTAL')
                 if row.get('TIEMPO DE ADICION DE CONTRATO'): contrato.tiempo_adicion = row.get(
-                    'TIEMPO DE ADICION DE CONTRATO', '')
+                    'TIEMPO DE ADICION DE CONTRATO')
                 if row.get('VALOR FINAL DEL CONTRATO'): contrato.valor_final = parse_float(
-                    row.get('VALOR FINAL DEL CONTRATO', 0))
-                if row.get('FORMA DE PAGO'): contrato.forma_pago = row.get('FORMA DE PAGO', '')
-                if row.get('OBJETO DEL CONTRATO'): contrato.objeto = row.get('OBJETO DEL CONTRATO', '')
-                if row.get('UNIDAD DE ATENCION'): contrato.unidad_atencion = row.get('UNIDAD DE ATENCION', '')
-                if row.get('PERFIL'): contrato.perfil = row.get('PERFIL', '')
-                if row.get('MUNICIPIO'): contrato.municipio = row.get('MUNICIPIO', '')
-                if row.get('ZONA'): contrato.zona = row.get('ZONA', '')
+                    row.get('VALOR FINAL DEL CONTRATO'))
+                if row.get('FORMA DE PAGO'): contrato.forma_pago = row.get('FORMA DE PAGO')
+                if row.get('OBJETO DEL CONTRATO'): contrato.objeto = row.get('OBJETO DEL CONTRATO')
+                if row.get('UNIDAD DE ATENCION'): contrato.unidad_atencion = row.get('UNIDAD DE ATENCION')
+                if row.get('PERFIL'): contrato.perfil = row.get('PERFIL')
+                if row.get('MUNICIPIO'): contrato.municipio = row.get('MUNICIPIO')
+                if row.get('ZONA'): contrato.zona = row.get('ZONA')
 
-                # --- 3. UPSERT PAGO ---
-                pago_no_str = str(row.get('PAGO No', '1')).strip()
+                # --- 4. UPSERT PAGO (Usando el Caché) ---
+                pago_no_str = clean_id(row.get('PAGO No', '1'))
                 pago_no = int(parse_float(pago_no_str)) if pago_no_str else 1
+                pago_key = f"{numero_contrato}_{pago_no}"
 
-                pago = self.db.query(DBPago).filter(DBPago.contrato_id == numero_contrato,
-                                                    DBPago.numero_pago == pago_no).first()
-                if not pago:
+                if pago_key in cache_pagos:
+                    pago = cache_pagos[pago_key]
+                else:
                     pago = DBPago(contrato_id=numero_contrato, numero_pago=pago_no)
                     self.db.add(pago)
+                    cache_pagos[pago_key] = pago
 
-                if row.get('TIPO DE INFORME'): pago.tipo_informe = row.get('TIPO DE INFORME', '')
-                if row.get('PERIODO INFORME DESDE'): pago.periodo_desde = row.get('PERIODO INFORME DESDE', '')
-                if row.get('PERIODO INFORME HASTA'): pago.periodo_hasta = row.get('PERIODO INFORME HASTA', '')
-                if row.get('Cuentas de cobro'): pago.cuentas_cobro = row.get('Cuentas de cobro', '')
-                if row.get('VALOR A PAGAR'): pago.valor_a_pagar = parse_float(row.get('VALOR A PAGAR', 0))
-                if row.get('OTRO SI'): pago.otro_si = row.get('OTRO SI', '')
-                if row.get('VALOR PAGADO'): pago.valor_pagado = parse_float(row.get('VALOR PAGADO', 0))
+                if row.get('TIPO DE INFORME'): pago.tipo_informe = row.get('TIPO DE INFORME')
+                if row.get('PERIODO INFORME DESDE'): pago.periodo_desde = row.get('PERIODO INFORME DESDE')
+                if row.get('PERIODO INFORME HASTA'): pago.periodo_hasta = row.get('PERIODO INFORME HASTA')
+                if row.get('Cuentas de cobro'): pago.cuentas_cobro = row.get('Cuentas de cobro')
+                if row.get('VALOR A PAGAR'): pago.valor_a_pagar = parse_float(row.get('VALOR A PAGAR'))
+                if row.get('OTRO SI'): pago.otro_si = row.get('OTRO SI')
+                if row.get('VALOR PAGADO'): pago.valor_pagado = parse_float(row.get('VALOR PAGADO'))
                 if row.get('IBC al sistema de Seguridad Social'): pago.ibc = parse_float(
-                    row.get('IBC al sistema de Seguridad Social', 0))
-                if row.get('PERIODO COTIZADO'): pago.periodo_cotizado = str(row.get('PERIODO COTIZADO', ''))
-                if row.get('PLANILLA No.'): pago.planilla_no = str(row.get('PLANILLA No.', ''))
-                if row.get('EPS'): pago.eps_nombre = str(row.get('EPS', ''))
-                if row.get('EPS VALOR PAGADO'): pago.eps_valor = parse_float(row.get('EPS VALOR PAGADO', 0))
-                if row.get('ARL'): pago.arl_nombre = str(row.get('ARL', ''))
-                if row.get('ARL VALOR PAGADO'): pago.arl_valor = parse_float(row.get('ARL VALOR PAGADO', 0))
-                if row.get('AFP NOMBRE'): pago.afp_nombre = str(row.get('AFP NOMBRE', ''))
-                if row.get('AFP VALOR PAGADO'): pago.afp_valor = parse_float(row.get('AFP VALOR PAGADO', 0))
-                if row.get('SENA VALOR PAGADO'): pago.sena_valor = parse_float(row.get('SENA VALOR PAGADO', 0))
-                if row.get('ICBF VALOR PAGADO'): pago.icbf_valor = parse_float(row.get('ICBF VALOR PAGADO', 0))
-                if row.get('CCF'): pago.ccf_nombre = str(row.get('CCF', ''))
-                if row.get('CCF VALOR PAGADO'): pago.ccf_valor = parse_float(row.get('CCF VALOR PAGADO', 0))
+                    row.get('IBC al sistema de Seguridad Social'))
+                if row.get('PERIODO COTIZADO'): pago.periodo_cotizado = row.get('PERIODO COTIZADO')
+                if row.get('PLANILLA No.'): pago.planilla_no = row.get('PLANILLA No.')
+                if row.get('EPS'): pago.eps_nombre = row.get('EPS')
+                if row.get('EPS VALOR PAGADO'): pago.eps_valor = parse_float(row.get('EPS VALOR PAGADO'))
+                if row.get('ARL'): pago.arl_nombre = row.get('ARL')
+                if row.get('ARL VALOR PAGADO'): pago.arl_valor = parse_float(row.get('ARL VALOR PAGADO'))
+                if row.get('AFP NOMBRE'): pago.afp_nombre = row.get('AFP NOMBRE')
+                if row.get('AFP VALOR PAGADO'): pago.afp_valor = parse_float(row.get('AFP VALOR PAGADO'))
+                if row.get('SENA VALOR PAGADO'): pago.sena_valor = parse_float(row.get('SENA VALOR PAGADO'))
+                if row.get('ICBF VALOR PAGADO'): pago.icbf_valor = parse_float(row.get('ICBF VALOR PAGADO'))
+                if row.get('CCF'): pago.ccf_nombre = row.get('CCF')
+                if row.get('CCF VALOR PAGADO'): pago.ccf_valor = parse_float(row.get('CCF VALOR PAGADO'))
                 if row.get('VALOR TOTAL PLANILLA'): pago.valor_total_planilla = parse_float(
-                    row.get('VALOR TOTAL PLANILLA', 0))
-                if row.get('ANEXA CERTIFICACION PARA ASIMILARSE A ASALARIADO'): pago.anexa_cert = str(
-                    row.get('ANEXA CERTIFICACION PARA ASIMILARSE A ASALARIADO', ''))
-                if row.get('ACTIVIDADES'): pago.actividades = row.get('ACTIVIDADES', '')
-                if row.get('Act'): pago.act = str(row.get('Act', ''))
-                if row.get('OBSERVACIONES'): pago.observaciones = row.get('OBSERVACIONES', '')
-                if row.get('N° FOLIOS'): pago.folios = str(row.get('N° FOLIOS', ''))
+                    row.get('VALOR TOTAL PLANILLA'))
+                if row.get('ANEXA CERTIFICACION PARA ASIMILARSE A ASALARIADO'): pago.anexa_cert = row.get(
+                    'ANEXA CERTIFICACION PARA ASIMILARSE A ASALARIADO')
+                if row.get('ACTIVIDADES'): pago.actividades = row.get('ACTIVIDADES')
+                if row.get('Act'): pago.act = row.get('Act')
+                if row.get('OBSERVACIONES'): pago.observaciones = row.get('OBSERVACIONES')
+                if row.get('N° FOLIOS'): pago.folios = row.get('N° FOLIOS')
 
                 self.db.commit()
                 registros += 1
             except Exception as e:
                 self.db.rollback()
-                print(f"Error procesando fila: {e}")
+                print(f"Error procesando fila (Contrato {row.get('N° DE CONTRATO')}): {e}")
                 continue
 
-        return True, f"Importación exitosa. {registros} registros procesados y/o actualizados."
+        return True, f"Importación exitosa. {registros} registros procesados y/o actualizados correctamente."
 
     def obtener_pago_por_id(self, pago_id: int):
         return self.db.query(DBPago).filter(DBPago.id == pago_id).first()
