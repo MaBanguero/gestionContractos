@@ -84,35 +84,6 @@ class GestorTransacciones:
             "valor_mensual_sugerido": int(pagos_db[-1].valor_a_pagar if pagos_db else 0)
         }
 
-    def crear_o_actualizar_contrato(self, datos: dict):
-        try:
-            identificacion = datos.get("identificacion")
-            num_contrato = datos.get("numero_contrato")
-
-            # 1. Contratista
-            contratista = self.db.query(DBContratista).filter(DBContratista.identificacion == identificacion).first()
-            if not contratista:
-                contratista = DBContratista(
-                    identificacion=identificacion, nombre=datos.get("nombre"),
-                    expedida_en=datos.get("expedida_en"), telefono=datos.get("telefono"),
-                    direccion=datos.get("direccion"), tipo_persona=datos.get("tipo_persona")
-                )
-                self.db.add(contratista)
-
-            # 2. Contrato
-            if not self.db.query(DBContrato).filter(DBContrato.numero_contrato == num_contrato).first():
-                nuevo_contrato = DBContrato(**{k: v for k, v in datos.items() if
-                                               k not in ["nombre", "identificacion", "expedida_en", "telefono",
-                                                         "direccion", "tipo_persona"]})
-                nuevo_contrato.contratista_id = identificacion
-                self.db.add(nuevo_contrato)
-
-            self.db.commit()
-            return True, "Contrato guardado exitosamente."
-        except SQLAlchemyError as e:
-            self.db.rollback()
-            return False, f"Error de BD: {str(e)}"
-
     def registrar_pago_supervision(self, datos: dict):
         try:
             nuevo_pago = DBPago(**datos)
@@ -243,11 +214,17 @@ class GestorTransacciones:
             except Exception as e:
                 return 0.0
 
-        for row in reader:
+        for row_cruda in reader:
             try:
+                # --- MAGIA SENIOR: Limpiar espacios invisibles y caracteres BOM de Excel ---
+                row = {str(k).replace('\ufeff', '').strip(): v for k, v in row_cruda.items() if k is not None}
+                # -------------------------------------------------------------------------------
+
                 identificacion = str(row.get('No. DE IDENTIFICACIÓN', '')).strip()
                 numero_contrato = str(row.get('N° DE CONTRATO', '')).strip()
-                if not identificacion or not numero_contrato: continue
+
+                if not identificacion or not numero_contrato:
+                    continue
 
                 if not self.db.query(DBContratista).filter(DBContratista.identificacion == identificacion).first():
                     self.db.add(DBContratista(
