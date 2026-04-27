@@ -58,6 +58,11 @@
                         <div class="col-md-4">
                             <label class="small text-muted">PERFIL</label>
                             <select name="perfil" class="form-select text-uppercase" required>
+                                <option value="TRANSPORTE_188" {% if contrato and contrato.perfil == 'TRANSPORTE_188' %}selected{% endif %}>TRANSPORTE_188</option>
+                                <option value="SINDICATO_106" {% if contrato and contrato.perfil == 'SINDICATO_106' %}selected{% endif %}>SINDICATO_106</option>
+                                <option value="SINDICATO_103" {% if contrato and contrato.perfil == 'SINDICATO_103' %}selected{% endif %}>SINDICATO_103</option>
+                                <option value="UNIVERSIDAD_DE_ANTIOQUIA_021" {% if contrato and contrato.perfil == 'UNIVERSIDAD_DE_ANTIOQUIA_021' %}selected{% endif %}>UNIVERSIDAD_DE_ANTIOQUIA_021</option>
+                                <option value="UNIVERSIDAD_DE_ANTIOQUIA_020" {% if contrato and contrato.perfil == 'UNIVERSIDAD_DE_ANTIOQUIA_020' %}selected{% endif %}>UNIVERSIDAD_DE_ANTIOQUIA_020</option>
                                 <option value="MEDICINA" {% if contrato and contrato.perfil == 'MEDICINA' %}selected{% endif %}>MEDICINA</option>
                                 <option value="ENFERMERIA" {% if contrato and contrato.perfil == 'ENFERMERIA' %}selected{% endif %}>ENFERMERIA</option>
                                 <option value="PSICOLOGIA" {% if contrato and contrato.perfil == 'PSICOLOGIA' %}selected{% endif %}>PSICOLOGIA</option>
