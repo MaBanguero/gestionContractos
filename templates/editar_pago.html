@@ -72,24 +72,31 @@
                         </div>
                     </div>
 
-                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">3. Seguridad Social y Parafiscales</h6>
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">3. Seguridad Social y Parafiscales
+                        Consolidados</h6>
+                    <div class="alert alert-info py-2 small shadow-sm"><i class="bi bi-info-circle"></i> En modo
+                        edición, las planillas múltiples se muestran consolidadas matemáticamente en un solo bloque
+                        global.
+                    </div>
                     <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
-                        <div class="col-md-4">
-                            <label class="small text-muted">N° Planilla</label>
-                            <input type="text" name="planilla_no" value="{{ pago.planilla_no or '' }}" class="form-control form-control-sm">
+                        <div class="col-md-4"><label class="small text-muted">N° Planillas</label><input type="text"
+                                                                                                         name="planilla_no[]"
+                                                                                                         value="{{ pago.planilla_no or '' }}"
+                                                                                                         class="form-control form-control-sm">
                         </div>
-                        <div class="col-md-4">
-                            <label class="small text-muted">Periodo Cotizado</label>
-                            <input type="text" name="periodo_cotizado" value="{{ pago.periodo_cotizado or '' }}" class="form-control form-control-sm">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="small text-muted">IBC</label>
-                            <input type="number" step="1" name="ibc" value="{{ pago.ibc or 0 }}" class="form-control form-control-sm">
+                        <div class="col-md-4"><label class="small text-muted">Periodos Cotizados</label><input
+                                type="text" name="periodo_cotizado[]" value="{{ pago.periodo_cotizado or '' }}"
+                                class="form-control form-control-sm"></div>
+                        <div class="col-md-4"><label class="small text-muted">Suma Total IBC</label><input type="number"
+                                                                                                           step="1"
+                                                                                                           name="ibc[]"
+                                                                                                           value="{{ pago.ibc or 0 }}"
+                                                                                                           class="form-control form-control-sm">
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="small text-muted">EPS</label>
-                            <select name="eps_nombre" class="form-select form-select-sm" id="eps_select" onchange="toggleOtro('eps')">
+                        <div class="col-md-6"><label class="small text-muted">Consolidado EPS</label>
+                            <select name="eps_nombre[]" class="form-select form-select-sm" id="eps_select"
+                                    onchange="toggleOtro('eps')">
                                 <option value="ALIANSALUD">ALIANSALUD</option>
                                 <option value="ASMET SALUD">ASMET SALUD</option>
                                 <option value="CAJACOPI">CAJACOPI</option>
@@ -105,18 +112,18 @@
                                 <option value="SAVIA SALUD">SAVIA SALUD</option>
                                 <option value="SOS">SOS</option>
                                 <option value="SURA">SURA</option>
-                                <option value="OTRA">Otra (Escribir...)</option>
+                                <option value="OTRA">Otra (Múltiples / Personalizado)...</option>
                             </select>
-                            <input type="text" name="eps_nombre_otro" id="eps_otro" class="form-control form-control-sm mt-1" style="display:none;" placeholder="Escriba la EPS">
+                            <input type="text" name="eps_nombre_otro[]" id="eps_otro"
+                                   class="form-control form-control-sm mt-1" style="display:none;">
                         </div>
-                        <div class="col-md-6">
-                            <label class="small text-muted">Valor EPS</label>
-                            <input type="number" step="1" name="eps_valor" id="val_eps" value="{{ pago.eps_valor or 0 }}" class="form-control form-control-sm" onkeyup="calcularTotal()">
-                        </div>
+                        <div class="col-md-6"><label class="small text-muted">Suma Valores EPS</label><input
+                                type="number" step="1" name="eps_valor[]" id="val_eps" value="{{ pago.eps_valor or 0 }}"
+                                class="form-control form-control-sm" onkeyup="calcularTotal()"></div>
 
-                        <div class="col-md-6">
-                            <label class="small text-muted">ARL</label>
-                            <select name="arl_nombre" class="form-select form-select-sm" id="arl_select" onchange="toggleOtro('arl')">
+                        <div class="col-md-6"><label class="small text-muted">Consolidado ARL</label>
+                            <select name="arl_nombre[]" class="form-select form-select-sm" id="arl_select"
+                                    onchange="toggleOtro('arl')">
                                 <option value="ALFA">ALFA</option>
                                 <option value="AURORA">AURORA</option>
                                 <option value="BOLIVAR">BOLÍVAR</option>
@@ -125,45 +132,70 @@
                                 <option value="MAPFRE">MAPFRE</option>
                                 <option value="POSITIVA">POSITIVA</option>
                                 <option value="SURA">SURA</option>
-                                <option value="OTRA">Otra (Escribir...)</option>
+                                <option value="OTRA">Otra (Múltiples / Personalizado)...</option>
                             </select>
-                            <input type="text" name="arl_nombre_otro" id="arl_otro" class="form-control form-control-sm mt-1" style="display:none;" placeholder="Escriba la ARL">
+                            <input type="text" name="arl_nombre_otro[]" id="arl_otro"
+                                   class="form-control form-control-sm mt-1" style="display:none;">
                         </div>
-                        <div class="col-md-6">
-                            <label class="small text-muted">Valor ARL</label>
-                            <input type="number" step="1" name="arl_valor" id="val_arl" value="{{ pago.arl_valor or 0 }}" class="form-control form-control-sm" onkeyup="calcularTotal()">
-                        </div>
+                        <div class="col-md-6"><label class="small text-muted">Suma Valores ARL</label><input
+                                type="number" step="1" name="arl_valor[]" id="val_arl" value="{{ pago.arl_valor or 0 }}"
+                                class="form-control form-control-sm" onkeyup="calcularTotal()"></div>
 
-                        <div class="col-md-6">
-                            <label class="small text-muted">AFP</label>
-                            <select name="afp_nombre" class="form-select form-select-sm" id="afp_select" onchange="toggleOtro('afp')">
+                        <div class="col-md-6"><label class="small text-muted">Consolidado AFP</label>
+                            <select name="afp_nombre[]" class="form-select form-select-sm" id="afp_select"
+                                    onchange="toggleOtro('afp')">
                                 <option value="COLPENSIONES">COLPENSIONES</option>
                                 <option value="PORVENIR">PORVENIR</option>
                                 <option value="PROTECCION">PROTECCIÓN</option>
                                 <option value="COLFONDOS">COLFONDOS</option>
                                 <option value="SKANDIA">SKANDIA</option>
-                                <option value="OTRA">Otra (Escribir...)</option>
+                                <option value="OTRA">Otra (Múltiples / Personalizado)...</option>
                             </select>
-                            <input type="text" name="afp_nombre_otro" id="afp_otro" class="form-control form-control-sm mt-1" style="display:none;" placeholder="Escriba la AFP">
+                            <input type="text" name="afp_nombre_otro[]" id="afp_otro"
+                                   class="form-control form-control-sm mt-1" style="display:none;">
                         </div>
-                        <div class="col-md-6">
-                            <label class="small text-muted">Valor AFP</label>
-                            <input type="number" step="1" name="afp_valor" id="val_afp" value="{{ pago.afp_valor or 0 }}" class="form-control form-control-sm" onkeyup="calcularTotal()">
-                        </div>
+                        <div class="col-md-6"><label class="small text-muted">Suma Valores AFP</label><input
+                                type="number" step="1" name="afp_valor[]" id="val_afp" value="{{ pago.afp_valor or 0 }}"
+                                class="form-control form-control-sm" onkeyup="calcularTotal()"></div>
 
-                        <div class="col-md-6">
-                            <label class="small text-muted">SENA</label>
-                            <input type="number" step="1" name="sena_valor" id="val_sena" value="{{ pago.sena_valor or 0 }}" class="form-control form-control-sm" onkeyup="calcularTotal()">
+                        <div class="col-md-6"><label class="small text-muted">Consolidado CCF</label>
+                            <select name="ccf_nombre[]" class="form-select form-select-sm" id="ccf_select"
+                                    onchange="toggleOtro('ccf')">
+                                <option value="COMFACAUCA">COMFACAUCA</option>
+                                <option value="COMFENALCO">COMFENALCO</option>
+                                <option value="OTRA">Otra (Múltiples / Personalizado)...</option>
+                            </select>
+                            <input type="text" name="ccf_nombre_otro[]" id="ccf_otro"
+                                   class="form-control form-control-sm mt-1" style="display:none;">
                         </div>
-                        <div class="col-md-6">
-                            <label class="small text-muted">ICBF</label>
-                            <input type="number" step="1" name="icbf_valor" id="val_icbf" value="{{ pago.icbf_valor or 0 }}" class="form-control form-control-sm" onkeyup="calcularTotal()">
+                        <div class="col-md-6"><label class="small text-muted">Suma Valores CCF</label><input
+                                type="number" step="1" name="ccf_valor[]" id="val_ccf" value="{{ pago.ccf_valor or 0 }}"
+                                class="form-control form-control-sm" onkeyup="calcularTotal()"></div>
+
+                        <div class="col-md-6"><label class="small text-muted">Suma SENA</label><input type="number"
+                                                                                                      step="1"
+                                                                                                      name="sena_valor[]"
+                                                                                                      id="val_sena"
+                                                                                                      value="{{ pago.sena_valor or 0 }}"
+                                                                                                      class="form-control form-control-sm"
+                                                                                                      onkeyup="calcularTotal()">
+                        </div>
+                        <div class="col-md-6"><label class="small text-muted">Suma ICBF</label><input type="number"
+                                                                                                      step="1"
+                                                                                                      name="icbf_valor[]"
+                                                                                                      id="val_icbf"
+                                                                                                      value="{{ pago.icbf_valor or 0 }}"
+                                                                                                      class="form-control form-control-sm"
+                                                                                                      onkeyup="calcularTotal()">
                         </div>
 
                         <div class="col-12 mt-3">
                             <div class="bg-dark text-white p-2 rounded d-flex justify-content-between align-items-center">
-                                <span class="fw-bold small text-uppercase">Total Planilla:</span>
-                                <input type="number" name="valor_total_planilla" id="total_planilla" value="{{ pago.valor_total_planilla or 0 }}" class="form-control form-control-sm text-end fw-bold bg-transparent text-white border-0 w-50" readonly>
+                                <span class="fw-bold small text-uppercase">Gran Total Planillas Consolidadas:</span>
+                                <input type="number" name="valor_total_planilla[]" id="total_planilla"
+                                       value="{{ pago.valor_total_planilla or 0 }}"
+                                       class="form-control form-control-sm text-end fw-bold bg-transparent text-white border-0 w-50"
+                                       readonly>
                             </div>
                         </div>
                     </div>

@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from models.db_models import DBContratista, DBContrato, DBPago
+from sqlalchemy import or_
+from models.db_models import DBContratista, DBContrato, DBPago, DBPerfil, DBActividadPerfil
 import pandas as pd
 import csv
 import io
@@ -12,22 +13,98 @@ class GestorTransacciones:
     def __init__(self, db: Session):
         self.db = db
 
-    def obtener_resumen_dashboard(self):
-        contratos = self.db.query(DBContrato).all()
+    def obtener_resumen_dashboard(self, busqueda: str = None, tipo_filtro: str = "todos", solo_inactivos: bool = False):
+        """Retorna el resumen de contratos, aplicando un filtro global o específico multicriterio."""
+        query = self.db.query(DBContrato).join(DBContrato.contratista)
+
+        # LÓGICA DE BÚSQUEDA (Busca en TODOS sin importar estado si el usuario teclea algo)
+        if busqueda:
+            terminos = busqueda.strip().split()
+            for termino in terminos:
+                t = f"%{termino}%"
+                if tipo_filtro == "identificacion":
+                    query = query.filter(DBContratista.identificacion.ilike(t))
+                elif tipo_filtro == "nombre":
+                    query = query.filter(DBContratista.nombre.ilike(t))
+                elif tipo_filtro == "numero_contrato":
+                    query = query.filter(DBContrato.numero_contrato.ilike(t))
+                elif tipo_filtro == "resolucion":
+                    query = query.filter(DBContrato.resolucion.ilike(t))
+                elif tipo_filtro == "tipologia":
+                    query = query.filter(DBContrato.tipologia.ilike(t))
+                else:
+                    query = query.filter(
+                        or_(
+                            DBContratista.nombre.ilike(t),
+                            DBContratista.identificacion.ilike(t),
+                            DBContrato.numero_contrato.ilike(t),
+                            DBContrato.resolucion.ilike(t),
+                            DBContrato.tipologia.ilike(t)
+                        )
+                    )
+        else:
+            # LÓGICA DE VISTAS ESTÁTICAS (Separa activos de inactivos)
+            if solo_inactivos:
+                query = query.filter(DBContrato.estado == "INACTIVO")
+            else:
+                # Contratos activos o heredados (NULL)
+                query = query.filter((DBContrato.estado == "ACTIVO") | (DBContrato.estado == None))
+
+        contratos = query.all()
+
+        # Bulk query: obtener TODAS las resoluciones de cada contratista (sin importar estado)
+        contratista_ids = list({c.contratista_id for c in contratos})
+        todas_resoluciones = (
+            self.db.query(DBContrato.contratista_id, DBContrato.resolucion)
+            .filter(DBContrato.contratista_id.in_(contratista_ids))
+            .filter(DBContrato.resolucion != None)
+            .filter(DBContrato.resolucion != "")
+            .distinct()
+            .all()
+        ) if contratista_ids else []
+
+        resoluciones_map = {}
+        for cid, res in todas_resoluciones:
+            if res and res.strip():
+                resoluciones_map.setdefault(cid, [])
+                if res.strip() not in resoluciones_map[cid]:
+                    resoluciones_map[cid].append(res.strip())
+
         lista = []
         for c in contratos:
             pagos_ordenados = sorted(c.pagos, key=lambda x: x.numero_pago)
             total_pagado = sum((p.valor_a_pagar or 0) for p in pagos_ordenados[:-1]) if pagos_ordenados else 0
             porcentaje = (total_pagado / c.valor_total * 100) if c.valor_total > 0 else 0
+
             lista.append({
                 "numero_contrato": c.numero_contrato,
+                "identificacion": c.contratista_id,
                 "contratista": c.contratista.nombre,
-                "valor_total": c.valor_total,
-                "total_pagado": total_pagado,
-                "saldo": c.valor_total - total_pagado,
-                "porcentaje_pagado": round(porcentaje, 1)
+                "perfil": c.perfil or "N/A",
+                "resolucion": c.resolucion or "N/A",
+                "tipologia": c.tipologia or "N/A",
+                "estado": c.estado or "ACTIVO",
+                "valor_total": float(c.valor_total),
+                "total_pagado": float(total_pagado),
+                "saldo": float(c.valor_total - total_pagado),
+                "porcentaje_pagado": round(porcentaje, 1),
+                "resoluciones_contratista": resoluciones_map.get(c.contratista_id, [])
             })
         return lista
+
+    def cambiar_estado_contrato(self, numero_contrato: str, nuevo_estado: str):
+        """Activa o inactiva (archiva) un contrato lógicamente (Soft Delete)."""
+        try:
+            contrato = self.db.query(DBContrato).filter(DBContrato.numero_contrato == numero_contrato).first()
+            if contrato:
+                contrato.estado = nuevo_estado
+                self.db.commit()
+                accion = 'Archivado' if nuevo_estado == 'INACTIVO' else 'Restaurado'
+                return True, f"El contrato ha sido {accion} exitosamente."
+            return False, "Contrato no encontrado."
+        except Exception as e:
+            self.db.rollback()
+            return False, str(e)
 
     def obtener_detalle_contrato(self, numero_contrato: str):
         contrato = self.db.query(DBContrato).filter(DBContrato.numero_contrato == numero_contrato).first()
@@ -195,7 +272,7 @@ class GestorTransacciones:
         return df
 
     def importar_datos_csv(self, contenido_csv: str):
-        """ Procesa el archivo CSV e inserta/actualiza usando Caché en Memoria (Upsert Seguro) """
+        """ Procesa el archivo CSV e inserta/actualiza TODAS las columnas modularmente """
         reader = csv.DictReader(io.StringIO(contenido_csv))
         registros = 0
 
@@ -211,137 +288,125 @@ class GestorTransacciones:
                 elif ',' in s:
                     s = s.replace(',', '.')
                 return float(s)
-            except Exception:
+            except Exception as e:
                 return 0.0
-
-        def clean_id(val):
-            """ Limpia identificaciones de Excel para evitar el '.0' fantasma """
-            s = str(val).strip()
-            if s.endswith('.0'): return s[:-2]
-            return s
-
-        # --- MAGIA SENIOR: Cargar todo en memoria para evitar errores de tipo en SQLite ---
-        cache_contratistas = {clean_id(c.identificacion): c for c in self.db.query(DBContratista).all()}
-        cache_contratos = {clean_id(c.numero_contrato): c for c in self.db.query(DBContrato).all()}
-        cache_pagos = {f"{clean_id(p.contrato_id)}_{p.numero_pago}": p for p in self.db.query(DBPago).all()}
 
         for row_cruda in reader:
             try:
-                # 1. Limpieza extrema y obligatoria de cada celda del Excel
-                row = {}
-                for k, v in row_cruda.items():
-                    if k is not None:
-                        clean_k = str(k).replace('\ufeff', '').strip()
-                        clean_v = str(v).strip() if v is not None else ""
-                        row[clean_k] = clean_v
+                # --- MAGIA SENIOR: Limpiar espacios invisibles y caracteres BOM de Excel ---
+                row = {str(k).replace('\ufeff', '').strip(): v for k, v in row_cruda.items() if k is not None}
+                # -------------------------------------------------------------------------------
 
-                identificacion = clean_id(row.get('No. DE IDENTIFICACIÓN', ''))
-                numero_contrato = clean_id(row.get('N° DE CONTRATO', ''))
+                identificacion = str(row.get('No. DE IDENTIFICACIÓN', '')).strip()
+                numero_contrato = str(row.get('N° DE CONTRATO', '')).strip()
 
                 if not identificacion or not numero_contrato:
                     continue
 
-                # --- 2. UPSERT CONTRATISTA (Usando el Caché) ---
-                if identificacion in cache_contratistas:
-                    contratista = cache_contratistas[identificacion]
-                else:
+                from models.db_models import DBContratista, DBContrato, \
+                    DBPago  # Importaciones seguras si el archivo lo requiere
+
+                # --- 1. UPSERT CONTRATISTA ---
+                contratista = self.db.query(DBContratista).filter(
+                    DBContratista.identificacion == identificacion).first()
+                if not contratista:
                     contratista = DBContratista(identificacion=identificacion)
                     self.db.add(contratista)
-                    cache_contratistas[identificacion] = contratista
 
-                # Asignación segura de datos (Solo si vienen llenos desde el Excel)
-                if row.get('NOMBRE CONTRATISTA'): contratista.nombre = row.get('NOMBRE CONTRATISTA')
-                if row.get('EXPEDIDA EN'): contratista.expedida_en = row.get('EXPEDIDA EN')
-                if row.get('No. TELÉFONO y/o CELULAR'): contratista.telefono = row.get('No. TELÉFONO y/o CELULAR')
-                if row.get('DIRECCION'): contratista.direccion = row.get('DIRECCION')
-                if row.get('TIPO DE PERSONA'): contratista.tipo_persona = row.get('TIPO DE PERSONA')
+                if row.get('NOMBRE CONTRATISTA'): contratista.nombre = row.get('NOMBRE CONTRATISTA', '')
+                if row.get('EXPEDIDA EN'): contratista.expedida_en = row.get('EXPEDIDA EN', '')
+                if row.get('No. TELÉFONO y/o CELULAR'): contratista.telefono = row.get('No. TELÉFONO y/o CELULAR', '')
+                if row.get('DIRECCION'): contratista.direccion = row.get('DIRECCION', '')
+                if row.get('TIPO DE PERSONA'): contratista.tipo_persona = row.get('TIPO DE PERSONA', '')
 
-                # --- 3. UPSERT CONTRATO (Usando el Caché) ---
-                if numero_contrato in cache_contratos:
-                    contrato = cache_contratos[numero_contrato]
-                    contrato.contratista_id = identificacion
-                else:
+                # --- 2. UPSERT CONTRATO ---
+                contrato = self.db.query(DBContrato).filter(DBContrato.numero_contrato == numero_contrato).first()
+                if not contrato:
                     contrato = DBContrato(numero_contrato=numero_contrato, contratista_id=identificacion)
                     self.db.add(contrato)
-                    cache_contratos[numero_contrato] = contrato
+                else:
+                    contrato.contratista_id = identificacion
 
                 if row.get('VALOR TOTAL DEL CONTRATO'): contrato.valor_total = parse_float(
-                    row.get('VALOR TOTAL DEL CONTRATO'))
+                    row.get('VALOR TOTAL DEL CONTRATO', 0))
                 if row.get('FECHA DE INICIO DEL CONTRATO'): contrato.fecha_inicio = row.get(
-                    'FECHA DE INICIO DEL CONTRATO')
+                    'FECHA DE INICIO DEL CONTRATO', '')
                 if row.get('FECHA TERMINACION DEL CONTRATO'): contrato.fecha_terminacion = row.get(
-                    'FECHA TERMINACION DEL CONTRATO')
-                if row.get('CÓDIGO CIIU'): contrato.codigo_ciiu = row.get('CÓDIGO CIIU')
-                if row.get('SUPERVISOR'): contrato.supervisor = row.get('SUPERVISOR')
+                    'FECHA TERMINACION DEL CONTRATO', '')
+                if row.get('CÓDIGO CIIU'): contrato.codigo_ciiu = row.get('CÓDIGO CIIU', '')
+                if row.get('SUPERVISOR'): contrato.supervisor = row.get('SUPERVISOR', '')
                 if row.get('NIVEL PROFESIONAL SUPERVISOR'): contrato.nivel_prof_supervisor = row.get(
-                    'NIVEL PROFESIONAL SUPERVISOR')
-                if row.get('INTERVENTOR'): contrato.interventor = row.get('INTERVENTOR')
+                    'NIVEL PROFESIONAL SUPERVISOR', '')
+                if row.get('INTERVENTOR'): contrato.interventor = row.get('INTERVENTOR', '')
                 if row.get('NIVEL PROFESIONAL INTERVENTOR'): contrato.nivel_prof_interventor = row.get(
-                    'NIVEL PROFESIONAL INTERVENTOR')
-                if row.get('CDP  No.'): contrato.cdp = row.get('CDP  No.')
-                if row.get('CRP No.'): contrato.crp = row.get('CRP No.')
-                if row.get('IMPUTACIÓN PRESUPUESTAL'): contrato.imputacion = row.get('IMPUTACIÓN PRESUPUESTAL')
+                    'NIVEL PROFESIONAL INTERVENTOR', '')
+                if row.get('CDP  No.'): contrato.cdp = row.get('CDP  No.', '')
+                if row.get('CRP No.'): contrato.crp = row.get('CRP No.', '')
+                if row.get('IMPUTACIÓN PRESUPUESTAL'): contrato.imputacion = row.get('IMPUTACIÓN PRESUPUESTAL', '')
                 if row.get('TIEMPO DE ADICION DE CONTRATO'): contrato.tiempo_adicion = row.get(
-                    'TIEMPO DE ADICION DE CONTRATO')
+                    'TIEMPO DE ADICION DE CONTRATO', '')
                 if row.get('VALOR FINAL DEL CONTRATO'): contrato.valor_final = parse_float(
-                    row.get('VALOR FINAL DEL CONTRATO'))
-                if row.get('FORMA DE PAGO'): contrato.forma_pago = row.get('FORMA DE PAGO')
-                if row.get('OBJETO DEL CONTRATO'): contrato.objeto = row.get('OBJETO DEL CONTRATO')
-                if row.get('UNIDAD DE ATENCION'): contrato.unidad_atencion = row.get('UNIDAD DE ATENCION')
-                if row.get('PERFIL'): contrato.perfil = row.get('PERFIL')
-                if row.get('MUNICIPIO'): contrato.municipio = row.get('MUNICIPIO')
-                if row.get('ZONA'): contrato.zona = row.get('ZONA')
+                    row.get('VALOR FINAL DEL CONTRATO', 0))
+                if row.get('FORMA DE PAGO'): contrato.forma_pago = row.get('FORMA DE PAGO', '')
+                if row.get('OBJETO DEL CONTRATO'): contrato.objeto = row.get('OBJETO DEL CONTRATO', '')
+                if row.get('UNIDAD DE ATENCION'): contrato.unidad_atencion = row.get('UNIDAD DE ATENCION', '')
+                if row.get('PERFIL'): contrato.perfil = row.get('PERFIL', '')
+                if row.get('MUNICIPIO'): contrato.municipio = row.get('MUNICIPIO', '')
+                if row.get('ZONA'): contrato.zona = row.get('ZONA', '')
 
-                # --- 4. UPSERT PAGO (Usando el Caché) ---
-                pago_no_str = clean_id(row.get('PAGO No', '1'))
+                # --- NUEVOS CAMPOS ---
+                # Asume que las columnas en Excel se llamarán "RESOLUCION" y "TIPOLOGIA"
+                if row.get('RESOLUCION'): contrato.resolucion = row.get('RESOLUCION', '')
+                if row.get('TIPOLOGIA'): contrato.tipologia = row.get('TIPOLOGIA', '')
+
+                # --- 3. UPSERT PAGO ---
+                pago_no_str = str(row.get('PAGO No', '1')).strip()
                 pago_no = int(parse_float(pago_no_str)) if pago_no_str else 1
-                pago_key = f"{numero_contrato}_{pago_no}"
 
-                if pago_key in cache_pagos:
-                    pago = cache_pagos[pago_key]
-                else:
+                pago = self.db.query(DBPago).filter(DBPago.contrato_id == numero_contrato,
+                                                    DBPago.numero_pago == pago_no).first()
+                if not pago:
                     pago = DBPago(contrato_id=numero_contrato, numero_pago=pago_no)
                     self.db.add(pago)
-                    cache_pagos[pago_key] = pago
 
-                if row.get('TIPO DE INFORME'): pago.tipo_informe = row.get('TIPO DE INFORME')
-                if row.get('PERIODO INFORME DESDE'): pago.periodo_desde = row.get('PERIODO INFORME DESDE')
-                if row.get('PERIODO INFORME HASTA'): pago.periodo_hasta = row.get('PERIODO INFORME HASTA')
-                if row.get('Cuentas de cobro'): pago.cuentas_cobro = row.get('Cuentas de cobro')
-                if row.get('VALOR A PAGAR'): pago.valor_a_pagar = parse_float(row.get('VALOR A PAGAR'))
-                if row.get('OTRO SI'): pago.otro_si = row.get('OTRO SI')
-                if row.get('VALOR PAGADO'): pago.valor_pagado = parse_float(row.get('VALOR PAGADO'))
+                if row.get('TIPO DE INFORME'): pago.tipo_informe = row.get('TIPO DE INFORME', '')
+                if row.get('PERIODO INFORME DESDE'): pago.periodo_desde = row.get('PERIODO INFORME DESDE', '')
+                if row.get('PERIODO INFORME HASTA'): pago.periodo_hasta = row.get('PERIODO INFORME HASTA', '')
+                if row.get('Cuentas de cobro'): pago.cuentas_cobro = row.get('Cuentas de cobro', '')
+                if row.get('VALOR A PAGAR'): pago.valor_a_pagar = parse_float(row.get('VALOR A PAGAR', 0))
+                if row.get('OTRO SI'): pago.otro_si = row.get('OTRO SI', '')
+                if row.get('VALOR PAGADO'): pago.valor_pagado = parse_float(row.get('VALOR PAGADO', 0))
                 if row.get('IBC al sistema de Seguridad Social'): pago.ibc = parse_float(
-                    row.get('IBC al sistema de Seguridad Social'))
-                if row.get('PERIODO COTIZADO'): pago.periodo_cotizado = row.get('PERIODO COTIZADO')
-                if row.get('PLANILLA No.'): pago.planilla_no = row.get('PLANILLA No.')
-                if row.get('EPS'): pago.eps_nombre = row.get('EPS')
-                if row.get('EPS VALOR PAGADO'): pago.eps_valor = parse_float(row.get('EPS VALOR PAGADO'))
-                if row.get('ARL'): pago.arl_nombre = row.get('ARL')
-                if row.get('ARL VALOR PAGADO'): pago.arl_valor = parse_float(row.get('ARL VALOR PAGADO'))
-                if row.get('AFP NOMBRE'): pago.afp_nombre = row.get('AFP NOMBRE')
-                if row.get('AFP VALOR PAGADO'): pago.afp_valor = parse_float(row.get('AFP VALOR PAGADO'))
-                if row.get('SENA VALOR PAGADO'): pago.sena_valor = parse_float(row.get('SENA VALOR PAGADO'))
-                if row.get('ICBF VALOR PAGADO'): pago.icbf_valor = parse_float(row.get('ICBF VALOR PAGADO'))
-                if row.get('CCF'): pago.ccf_nombre = row.get('CCF')
-                if row.get('CCF VALOR PAGADO'): pago.ccf_valor = parse_float(row.get('CCF VALOR PAGADO'))
+                    row.get('IBC al sistema de Seguridad Social', 0))
+                if row.get('PERIODO COTIZADO'): pago.periodo_cotizado = str(row.get('PERIODO COTIZADO', ''))
+                if row.get('PLANILLA No.'): pago.planilla_no = str(row.get('PLANILLA No.', ''))
+                if row.get('EPS'): pago.eps_nombre = str(row.get('EPS', ''))
+                if row.get('EPS VALOR PAGADO'): pago.eps_valor = parse_float(row.get('EPS VALOR PAGADO', 0))
+                if row.get('ARL'): pago.arl_nombre = str(row.get('ARL', ''))
+                if row.get('ARL VALOR PAGADO'): pago.arl_valor = parse_float(row.get('ARL VALOR PAGADO', 0))
+                if row.get('AFP NOMBRE'): pago.afp_nombre = str(row.get('AFP NOMBRE', ''))
+                if row.get('AFP VALOR PAGADO'): pago.afp_valor = parse_float(row.get('AFP VALOR PAGADO', 0))
+                if row.get('SENA VALOR PAGADO'): pago.sena_valor = parse_float(row.get('SENA VALOR PAGADO', 0))
+                if row.get('ICBF VALOR PAGADO'): pago.icbf_valor = parse_float(row.get('ICBF VALOR PAGADO', 0))
+                if row.get('CCF'): pago.ccf_nombre = str(row.get('CCF', ''))
+                if row.get('CCF VALOR PAGADO'): pago.ccf_valor = parse_float(row.get('CCF VALOR PAGADO', 0))
                 if row.get('VALOR TOTAL PLANILLA'): pago.valor_total_planilla = parse_float(
-                    row.get('VALOR TOTAL PLANILLA'))
-                if row.get('ANEXA CERTIFICACION PARA ASIMILARSE A ASALARIADO'): pago.anexa_cert = row.get(
-                    'ANEXA CERTIFICACION PARA ASIMILARSE A ASALARIADO')
-                if row.get('ACTIVIDADES'): pago.actividades = row.get('ACTIVIDADES')
-                if row.get('Act'): pago.act = row.get('Act')
-                if row.get('OBSERVACIONES'): pago.observaciones = row.get('OBSERVACIONES')
-                if row.get('N° FOLIOS'): pago.folios = row.get('N° FOLIOS')
+                    row.get('VALOR TOTAL PLANILLA', 0))
+                if row.get('ANEXA CERTIFICACION PARA ASIMILARSE A ASALARIADO'): pago.anexa_cert = str(
+                    row.get('ANEXA CERTIFICACION PARA ASIMILARSE A ASALARIADO', ''))
+                if row.get('ACTIVIDADES'): pago.actividades = row.get('ACTIVIDADES', '')
+                if row.get('Act'): pago.act = str(row.get('Act', ''))
+                if row.get('OBSERVACIONES'): pago.observaciones = row.get('OBSERVACIONES', '')
+                if row.get('N° FOLIOS'): pago.folios = str(row.get('N° FOLIOS', ''))
 
                 self.db.commit()
                 registros += 1
             except Exception as e:
                 self.db.rollback()
-                print(f"Error procesando fila (Contrato {row.get('N° DE CONTRATO')}): {e}")
+                print(f"Error procesando fila: {e}")
                 continue
 
-        return True, f"Importación exitosa. {registros} registros procesados y/o actualizados correctamente."
+        return True, f"Importación exitosa. {registros} registros procesados y/o actualizados."
 
     def obtener_pago_por_id(self, pago_id: int):
         return self.db.query(DBPago).filter(DBPago.id == pago_id).first()
@@ -375,52 +440,187 @@ class GestorTransacciones:
             self.db.rollback()
             return False, f"Error al eliminar: {str(e)}"
 
-    def crear_o_actualizar_contrato(self, datos: dict):
+    def crear_o_actualizar_contrato(self, form_data: dict):
+        """
+        Registra un nuevo contrato o actualiza uno existente desde la UI.
+        Maneja la integridad referencial con el Contratista (Upsert).
+        """
         try:
-            identificacion = str(datos.get("identificacion")).strip()
-            num_contrato = str(datos.get("numero_contrato")).strip()
+            identificacion = str(form_data.get('identificacion', '')).strip()
+            numero_contrato = str(form_data.get('numero_contrato', '')).strip()
 
-            # 1. CONTRATISTA: Buscar si existe
+            if not identificacion or not numero_contrato:
+                return False, "La Identificación del contratista y el Número de Contrato son obligatorios."
+
+            # 1. Lógica Upsert para el Contratista
             contratista = self.db.query(DBContratista).filter(DBContratista.identificacion == identificacion).first()
             if not contratista:
-                contratista = DBContratista(
-                    identificacion=identificacion,
-                    nombre=datos.get("nombre"),
-                    expedida_en=datos.get("expedida_en"),
-                    telefono=datos.get("telefono"),
-                    direccion=datos.get("direccion"),
-                    tipo_persona=datos.get("tipo_persona")
-                )
+                contratista = DBContratista(identificacion=identificacion)
                 self.db.add(contratista)
-            else:
-                # Si existe, actualizamos sus datos
-                contratista.nombre = datos.get("nombre", contratista.nombre)
-                contratista.expedida_en = datos.get("expedida_en", contratista.expedida_en)
-                contratista.telefono = datos.get("telefono", contratista.telefono)
-                contratista.direccion = datos.get("direccion", contratista.direccion)
-                contratista.tipo_persona = datos.get("tipo_persona", contratista.tipo_persona)
 
-            # 2. CONTRATO: Buscar si existe
-            contrato = self.db.query(DBContrato).filter(DBContrato.numero_contrato == num_contrato).first()
+            contratista.nombre = form_data.get('nombre', contratista.nombre)
+            contratista.expedida_en = form_data.get('expedida_en', contratista.expedida_en)
+            contratista.telefono = form_data.get('telefono', contratista.telefono)
+            contratista.direccion = form_data.get('direccion', contratista.direccion)
+            contratista.tipo_persona = form_data.get('tipo_persona', contratista.tipo_persona)
 
-            # Filtramos los datos que pertenecen solo al contrato
-            campos_excluidos = ["nombre", "identificacion", "expedida_en", "telefono", "direccion", "tipo_persona",
-                                "numero_contrato"]
-            datos_contrato = {k: v for k, v in datos.items() if k not in campos_excluidos}
+            # 2. Lógica Upsert para el Contrato
+            contrato = self.db.query(DBContrato).filter(DBContrato.numero_contrato == numero_contrato).first()
+            es_nuevo = False
 
             if not contrato:
-                nuevo_contrato = DBContrato(numero_contrato=num_contrato, contratista_id=identificacion,
-                                            **datos_contrato)
-                self.db.add(nuevo_contrato)
-            else:
-                # Si existe, actualizamos los campos del contrato
-                for key, value in datos_contrato.items():
-                    if hasattr(contrato, key):
-                        setattr(contrato, key, value)
-                contrato.contratista_id = identificacion
+                contrato = DBContrato(numero_contrato=numero_contrato)
+                self.db.add(contrato)
+                es_nuevo = True
 
+            # Asignación de llaves foráneas y metadatos
+            contrato.contratista_id = contratista.identificacion
+            contrato.perfil = form_data.get('perfil', contrato.perfil)
+            contrato.supervisor = form_data.get('supervisor', contrato.supervisor)
+            contrato.nivel_prof_supervisor = form_data.get('nivel_prof_supervisor', contrato.nivel_prof_supervisor)
+            contrato.interventor = form_data.get('interventor', contrato.interventor)
+            contrato.cdp = form_data.get('cdp', contrato.cdp)
+            contrato.crp = form_data.get('crp', contrato.crp)
+            contrato.imputacion = form_data.get('imputacion', contrato.imputacion)
+            contrato.codigo_ciiu = form_data.get('codigo_ciiu', contrato.codigo_ciiu)
+            contrato.forma_pago = form_data.get('forma_pago', contrato.forma_pago)
+            contrato.objeto = form_data.get('objeto_contrato', contrato.objeto)
+
+            # Fechas y tiempos
+            contrato.fecha_inicio = form_data.get('fecha_inicio', contrato.fecha_inicio)
+            contrato.fecha_terminacion = form_data.get('fecha_terminacion', contrato.fecha_terminacion)
+            contrato.tiempo_adicion = form_data.get('tiempo_adicion', contrato.tiempo_adicion)
+
+            # Lógica financiera
+            contrato.valor_total = float(form_data.get('valor_total') or 0.0)
+            contrato.valor_final = float(form_data.get('valor_final') or contrato.valor_total)
+
+            # Campos: Resolucion y Tipología
+            contrato.resolucion = form_data.get('resolucion', contrato.resolucion)
+            contrato.tipologia = form_data.get('tipologia', contrato.tipologia)
+
+            # Confirmación de la transacción ACID
             self.db.commit()
-            return True, "Información del contrato guardada exitosamente."
-        except SQLAlchemyError as e:
+            accion = "creado" if es_nuevo else "actualizado"
+            return True, f"El Contrato {numero_contrato} ha sido {accion} exitosamente."
+
+        except Exception as e:
             self.db.rollback()
-            return False, f"Error de BD: {str(e)}"
+            return False, f"Error crítico en la transacción de base de datos: {str(e)}"
+
+    def obtener_perfiles(self):
+        return self.db.query(DBPerfil).order_by(DBPerfil.nombre).all()
+
+    def obtener_perfil(self, perfil_id: int):
+        return self.db.query(DBPerfil).filter(DBPerfil.id == perfil_id).first()
+
+    def crear_perfil(self, nombre: str, descripcion: str = "", honorario_referencia: float = 0.0):
+        try:
+            nuevo = DBPerfil(
+                nombre=nombre.strip().upper(),
+                descripcion=descripcion,
+                honorario_referencia=honorario_referencia
+            )
+            self.db.add(nuevo)
+            self.db.commit()
+            return True, "Perfil creado exitosamente."
+        except Exception as e:
+            self.db.rollback()
+            return False, f"Error al crear perfil (¿Nombre duplicado?): {str(e)}"
+
+    def editar_perfil(self, perfil_id: int, nombre: str, descripcion: str, honorario_referencia: float):
+        """Actualiza los metadatos principales de un perfil, incluyendo su honorario base."""
+        try:
+            perfil = self.db.query(DBPerfil).filter(DBPerfil.id == perfil_id).first()
+            if perfil:
+                perfil.nombre = nombre.strip().upper()
+                perfil.descripcion = descripcion
+                perfil.honorario_referencia = honorario_referencia
+                self.db.commit()
+                return True, "Perfil y honorario actualizados correctamente."
+            return False, "Perfil no encontrado."
+        except Exception as e:
+            self.db.rollback()
+            return False, str(e)
+
+    def eliminar_perfil(self, perfil_id: int):
+        try:
+            perfil = self.db.query(DBPerfil).filter(DBPerfil.id == perfil_id).first()
+            if perfil:
+                self.db.delete(perfil)
+                self.db.commit()
+                return True, "Perfil y sus actividades eliminados."
+            return False, "Perfil no encontrado."
+        except Exception as e:
+            self.db.rollback()
+            return False, str(e)
+
+    def agregar_actividad(self, perfil_id: int, descripcion: str, orden: int = 0):
+        try:
+            actividad = DBActividadPerfil(perfil_id=perfil_id, descripcion=descripcion.strip(), orden=orden)
+            self.db.add(actividad)
+            self.db.commit()
+            return True, "Actividad agregada."
+        except Exception as e:
+            self.db.rollback()
+            return False, str(e)
+
+    def eliminar_actividad(self, actividad_id: int):
+        try:
+            actividad = self.db.query(DBActividadPerfil).filter(DBActividadPerfil.id == actividad_id).first()
+            if actividad:
+                self.db.delete(actividad)
+                self.db.commit()
+                return True, "Actividad eliminada."
+            return False, "Actividad no encontrada."
+        except Exception as e:
+            self.db.rollback()
+            return False, str(e)
+
+    def obtener_actividad(self, actividad_id: int):
+        """Recupera una actividad específica por su ID."""
+        return self.db.query(DBActividadPerfil).filter(DBActividadPerfil.id == actividad_id).first()
+
+    def buscar_contratistas(self, q: str):
+        """Busca contratistas por identificación o nombre (máx. 10 resultados)."""
+        t = f"%{q}%"
+        return (
+            self.db.query(DBContratista)
+            .filter(or_(DBContratista.identificacion.ilike(t), DBContratista.nombre.ilike(t)))
+            .order_by(DBContratista.nombre)
+            .limit(10)
+            .all()
+        )
+
+    def obtener_contratista(self, identificacion: str):
+        return self.db.query(DBContratista).filter(DBContratista.identificacion == identificacion).first()
+
+    def actualizar_contratista(self, identificacion: str, datos: dict):
+        try:
+            contratista = self.db.query(DBContratista).filter(DBContratista.identificacion == identificacion).first()
+            if not contratista:
+                return False, "Contratista no encontrado."
+            contratista.nombre = datos.get('nombre', contratista.nombre)
+            contratista.expedida_en = datos.get('expedida_en', contratista.expedida_en)
+            contratista.telefono = datos.get('telefono', contratista.telefono)
+            contratista.direccion = datos.get('direccion', contratista.direccion)
+            contratista.tipo_persona = datos.get('tipo_persona', contratista.tipo_persona)
+            self.db.commit()
+            return True, "Datos del contratista actualizados correctamente."
+        except Exception as e:
+            self.db.rollback()
+            return False, str(e)
+
+    def editar_actividad(self, actividad_id: int, descripcion: str, orden: int):
+        """Actualiza el contenido y el orden de una obligación existente."""
+        try:
+            actividad = self.db.query(DBActividadPerfil).filter(DBActividadPerfil.id == actividad_id).first()
+            if actividad:
+                actividad.descripcion = descripcion.strip()
+                actividad.orden = orden
+                self.db.commit()
+                return True, "Obligación actualizada correctamente."
+            return False, "Actividad no encontrada."
+        except Exception as e:
+            self.db.rollback()
+            return False, str(e)

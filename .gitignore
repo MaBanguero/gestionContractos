@@ -1,0 +1,4 @@
+.venv
+finanzas_contratistas.db
+./__pycache__
+.terraform

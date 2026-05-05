@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-3">
+    <!-- Retorna al perfil padre usando el ID de la relación -->
+    <a href="/perfiles/{{ actividad.perfil_id }}" class="text-decoration-none text-secondary">
+        <i class="bi bi-arrow-left"></i> Volver a Obligaciones del Perfil
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card shadow-sm border-0 border-top border-primary border-3 mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0 text-dark"><i class="bi bi-pencil-square text-primary"></i> Edición de Obligación Contractual</h5>
+            </div>
+            <div class="card-body bg-light">
+
+                <form action="/actividades/{{ actividad.id }}/editar" method="POST">
+                    <!-- ID oculto para mantener la integridad referencial al hacer el redirect -->
+                    <input type="hidden" name="perfil_id" value="{{ actividad.perfil_id }}">
+
+                    <div class="row g-3 bg-white p-4 rounded shadow-sm border">
+                        <div class="col-md-2">
+                            <label class="small text-muted fw-bold">Orden N°</label>
+                            <input type="number" name="orden" class="form-control" value="{{ actividad.orden }}" required>
+                        </div>
+                        <div class="col-md-10">
+                            <label class="small text-muted fw-bold">Contenido de la Obligación</label>
+                            <!-- El textarea inyecta el contenido actual para que CKEditor lo monte en su iframe -->
+                            <textarea id="editor_edicion" name="descripcion" class="form-control" rows="8">{{ actividad.descripcion }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <a href="/perfiles/{{ actividad.perfil_id }}" class="btn btn-light text-muted fw-bold px-4 shadow-sm border">Cancelar</a>
+                        <button type="submit" class="btn btn-primary fw-bold px-4 shadow-sm">Actualizar Obligación</button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Integración de CKEditor 5 (Classic Build) -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.ckeditor.com/ckeditor5/40.2.0/classic/ckeditor.js"></script>
+
+<script>
+    $(document).ready(function() {
+        ClassicEditor
+            .create(document.querySelector('#editor_edicion'), {
+                toolbar: [
+                    'heading', '|',
+                    'bold', 'italic', '|',
+                    'bulletedList', 'numberedList', '|',
+                    'insertTable', '|',
+                    'undo', 'redo'
+                ],
+                table: {
+                    contentToolbar: [
+                        'tableColumn',
+                        'tableRow',
+                        'mergeTableCells'
+                    ]
+                }
+            })
+            .catch(error => {
+                console.error('Error de renderizado en CKEditor 5:', error);
+            });
+    });
+</script>
+{% endblock %}

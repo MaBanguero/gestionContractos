@@ -42,6 +42,9 @@ class DBContrato(Base):
 
     contratista = relationship("DBContratista", back_populates="contratos")
     pagos = relationship("DBPago", back_populates="contrato", cascade="all, delete-orphan")
+    resolucion = Column(String, nullable=True)
+    tipologia = Column(String, nullable=True)
+    estado = Column(String, default="ACTIVO")
 
 
 class DBPago(Base):
@@ -91,3 +94,24 @@ class DBUsuario(Base):
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
     rol = Column(String, default="admin")
+
+class DBPerfil(Base):
+    __tablename__ = "perfiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, unique=True, index=True, nullable=False)
+    descripcion = Column(String, nullable=True)
+    honorario_referencia = Column(Float, default=0.0) # Útil para validaciones financieras
+
+    # Relación en cascada: si se elimina un perfil, se eliminan sus actividades
+    actividades = relationship("DBActividadPerfil", back_populates="perfil", cascade="all, delete-orphan")
+
+class DBActividadPerfil(Base):
+    __tablename__ = "actividades_perfil"
+
+    id = Column(Integer, primary_key=True, index=True)
+    perfil_id = Column(Integer, ForeignKey("perfiles.id"), nullable=False)
+    descripcion = Column(Text, nullable=False)
+    orden = Column(Integer, default=0) # Garantiza que el PDF imprima las obligaciones en el orden legal correcto
+
+    perfil = relationship("DBPerfil", back_populates="actividades")

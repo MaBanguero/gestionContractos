@@ -1,447 +1,435 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="mb-3 d-flex justify-content-between align-items-center">
-        <a href="/" class="text-decoration-none text-secondary"><i class="bi bi-arrow-left"></i> Volver al Dashboard</a>
+<div class="mb-3 d-flex justify-content-between align-items-center">
+    <a href="/" class="text-decoration-none text-secondary"><i class="bi bi-arrow-left"></i> Volver al Dashboard</a>
 
-        <div class="d-flex gap-2">
-            <a href="/contratista/{{ contrato.contratista_id }}/pdfs" class="btn btn-danger btn-sm shadow-sm fw-bold">
-                <i class="bi bi-file-zip-fill"></i> Descargar Todos los PDFs
-            </a>
-            <a href="/exportar_excel?numero_contrato={{ contrato.numero_contrato }}"
-               class="btn btn-success btn-sm shadow-sm">
-                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
-            </a>
-        </div>
-    </div>
+    <div class="d-flex gap-2">
+        <!-- BOTÓN DE ARCHIVAR / RESTAURAR CONTRATO -->
+        <form action="/contrato/{{ contrato.numero_contrato }}/estado" method="POST" class="m-0">
+            {% if contrato.estado == 'INACTIVO' %}
+            <input type="hidden" name="estado" value="ACTIVO">
+            <button type="submit" class="btn btn-warning btn-sm shadow-sm fw-bold">
+                <i class="bi bi-arrow-counterclockwise"></i> Restaurar Contrato
+            </button>
+            {% else %}
+            <input type="hidden" name="estado" value="INACTIVO">
+            <button type="submit" class="btn btn-outline-danger btn-sm shadow-sm fw-bold" onclick="return confirm('¿Está seguro de archivar este contrato?\n\nDesaparecerá del dashboard principal, pero su historial financiero y trazabilidad se mantendrán intactos.');">
+                <i class="bi bi-archive"></i> Archivar Contrato
+            </button>
+            {% endif %}
+        </form>
 
-    <div class="row">
-        <div class="col-md-7">
-            <div class="card shadow-sm border-0 border-top border-success border-3 mb-4">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0 text-success"><i class="bi bi-clipboard-check"></i> Generar Informe de Supervisión
-                    </h5>
-                </div>
-                <div class="card-body bg-light">
-                    <form action="/pago/nuevo_completo" method="POST">
-                        <input type="hidden" name="numero_contrato" value="{{ contrato.numero_contrato }}">
-
-                        <div class="accordion" id="accordionSupervision">
-
-                            <div class="accordion-item border-0 mb-2 shadow-sm">
-                                <h2 class="accordion-header">
-                                    <button class="accordion-button bg-white text-dark fw-bold" type="button"
-                                            data-bs-toggle="collapse" data-bs-target="#sec1">
-                                        1. Datos del Informe y Valores
-                                    </button>
-                                </h2>
-                                <div id="sec1" class="accordion-collapse collapse show"
-                                     data-bs-parent="#accordionSupervision">
-                                    <div class="accordion-body bg-white">
-                                        <div class="row g-2 mb-3">
-    <div class="col-md-3">
-        <label class="small fw-bold">Tipo de Informe</label>
-        <select name="tipo_informe" class="form-select form-select-sm" required>
-            <option value="" disabled selected>Seleccione...</option>
-            <option value="PARCIAL">PARCIAL</option>
-            <option value="FINAL">FINAL</option>
-        </select>
-    </div>
-    <div class="col-md-3">
-        <label class="small text-muted">Periodo Desde</label>
-        <input type="date" name="periodo_desde" class="form-control form-control-sm" required>
-    </div>
-    <div class="col-md-3">
-        <label class="small text-muted">Periodo Hasta</label>
-        <input type="date" name="periodo_hasta" class="form-control form-control-sm" required>
-    </div>
-    <div class="row g-2 mb-3">
-    <div class="col-md-3">
-        <label class="small fw-bold text-danger">Fecha de Firma (Dado en...)</label>
-        <input type="date" name="fecha_firma" class="form-control form-control-sm border-danger" required>
+        <a href="/contratista/{{ contrato.contratista_id }}/pdfs" class="btn btn-danger btn-sm shadow-sm fw-bold">
+            <i class="bi bi-file-zip-fill"></i> Descargar Todos los PDFs
+        </a>
+        <a href="/exportar_excel?numero_contrato={{ contrato.numero_contrato }}" class="btn btn-success btn-sm shadow-sm">
+            <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+        </a>
     </div>
 </div>
-</div>
-                                        <div class="row g-2">
-                                            <div class="col-md-3">
-                                                <label class="small fw-bold">Pago N°</label>
-                                                <input type="number" name="numero_pago" value="{{ proximo_pago }}"
-                                                       class="form-control form-control-sm text-center fw-bold text-success"
-                                                       readonly>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="small text-muted">Cuentas de Cobro</label>
-                                                <input type="text" name="cuentas_cobro"
-                                                       class="form-control form-control-sm">
-                                            </div>
-                                            <div class="col-md-5">
-                                                <label class="small text-muted">Otro Si</label>
-                                                <input type="text" name="otro_si" class="form-control form-control-sm"
-                                                       placeholder="N/A">
-                                            </div>
-                                        </div>
 
-                                        <div class="row g-2 mt-2">
-                                            <div class="col-md-12">
-                                                <label class="small fw-bold text-primary">Valor a Pagar (Causación este
-                                                    mes)</label>
-                                                <div class="input-group input-group-sm">
-                                                    <span class="input-group-text">$</span>
-                                                    <input type="number" step="1" name="valor_a_pagar"
-                                                           value="{{ valor_mensual_sugerido if valor_mensual_sugerido > 0 else '' }}"
-                                                           class="form-control" placeholder="0" required>
-                                                </div>
-                                                <div class="mt-1 text-muted small">
-                                                    <i class="bi bi-info-circle"></i> Ingresa el valor aprobado para
-                                                    esta supervisión.
-                                                </div>
-                                            </div>
+<div class="row">
+    <!-- COLUMNA IZQUIERDA: FORMULARIO DE SUPERVISIÓN -->
+    <div class="col-md-7">
+        <div class="card shadow-sm border-0 border-top border-success border-3 mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0 text-success"><i class="bi bi-clipboard-check"></i> Generar Informe de Supervisión</h5>
+            </div>
+            <div class="card-body bg-light">
+                <form action="/pago/nuevo_completo" method="POST">
+                    <input type="hidden" name="numero_contrato" value="{{ contrato.numero_contrato }}">
 
-                                            <input type="hidden" name="valor_pagado"
-                                                   value="{{ acumulado_por_girar if acumulado_por_girar > 0 else 0 }}">
-                                        </div>
-                                        <div class="mt-2 text-muted small">
-                                            <i class="bi bi-info-circle"></i> El <b>Valor Pagado</b> sugiere
-                                            automáticamente
-                                            el "Total Pagado a la Fecha" registrado en el sistema.
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="accordion-item border-0 mb-2 shadow-sm">
-                                <h2 class="accordion-header">
-                                    <button class="accordion-button collapsed bg-white text-dark fw-bold" type="button"
-                                            data-bs-toggle="collapse" data-bs-target="#sec2">
-                                        2. Seguridad Social y Parafiscales
-                                    </button>
-                                </h2>
-                                <div id="sec2" class="accordion-collapse collapse"
-                                     data-bs-parent="#accordionSupervision">
-                                    <div class="accordion-body bg-white">
-                                        <div class="row g-2 mb-3">
-                                            <div class="col-md-4"><label class="small text-muted">N°
-                                                Planilla</label><input
-                                                    type="text" name="planilla_no" class="form-control form-control-sm">
-                                            </div>
-                                            <div class="col-md-4"><label class="small text-muted">Periodo
-                                                Cotizado</label><input type="text" name="periodo_cotizado"
-                                                                       class="form-control form-control-sm"></div>
-                                            <div class="col-md-4"><label class="small text-muted">IBC</label><input
-                                                    type="number" step="1" name="ibc"
-                                                    class="form-control form-control-sm">
-                                            </div>
-                                        </div>
-
-                                        <div class="row g-2 mb-2 align-items-end">
-                                            <div class="col-6"><label class="small text-muted">EPS</label>
-                                                <select name="eps_nombre" class="form-select form-select-sm"
-                                                        id="eps_select" onchange="toggleOtro('eps')">
-                                                    <option value="" disabled selected>Seleccione EPS...</option>
-                                                    <option value="ALIANSALUD">ALIANSALUD</option>
-                                                    <option value="ASMET SALUD">ASMET SALUD</option>
-                                                    <option value="CAJACOPI">CAJACOPI</option>
-                                                    <option value="CAPITAL SALUD">CAPITAL SALUD</option>
-                                                    <option value="COMFENALCO VALLE">COMFENALCO VALLE</option>
-                                                    <option value="COMPENSAR">COMPENSAR</option>
-                                                    <option value="COOSALUD">COOSALUD</option>
-                                                    <option value="EPS SANITAS">EPS SANITAS</option>
-                                                    <option value="FAMISANAR">FAMISANAR</option>
-                                                    <option value="MUTUAL SER">MUTUAL SER</option>
-                                                    <option value="NUEVA EPS">NUEVA EPS</option>
-                                                    <option value="SALUD TOTAL">SALUD TOTAL</option>
-                                                    <option value="SAVIA SALUD">SAVIA SALUD</option>
-                                                    <option value="SOS">SOS (Servicio Occidental de Salud)</option>
-                                                    <option value="SURA">SURA</option>
-                                                    <option value="OTRA">Otra (Escribir...)</option>
-                                                </select>
-                                                <input type="text" name="eps_nombre_otro" id="eps_otro"
-                                                       class="form-control form-control-sm mt-1" style="display:none;">
-                                            </div>
-                                            <div class="col-6"><label class="small text-muted">Valor EPS</label><input
-                                                    type="number" step="1" name="eps_valor" id="val_eps"
-                                                    class="form-control form-control-sm" value="0"
-                                                    onkeyup="calcularTotal()"></div>
-                                        </div>
-
-                                        <div class="row g-2 mb-2 align-items-end">
-                                            <div class="col-6"><label class="small text-muted">ARL</label>
-                                                <select name="arl_nombre" class="form-select form-select-sm"
-                                                        id="arl_select" onchange="toggleOtro('arl')">
-                                                    <option value="" disabled selected>Seleccione ARL...</option>
-                                                    <option value="ALFA">ALFA</option>
-                                                    <option value="AURORA">AURORA</option>
-                                                    <option value="BOLIVAR">BOLÍVAR</option>
-                                                    <option value="COLMENA">COLMENA</option>
-                                                    <option value="EQUIDAD">EQUIDAD</option>
-                                                    <option value="MAPFRE">MAPFRE</option>
-                                                    <option value="POSITIVA">POSITIVA</option>
-                                                    <option value="SURA">SURA</option>
-                                                    <option value="OTRA">Otra (Escribir...)</option>
-                                                </select>
-                                                <input type="text" name="arl_nombre_otro" id="arl_otro"
-                                                       class="form-control form-control-sm mt-1" style="display:none;">
-                                            </div>
-                                            <div class="col-6"><label class="small text-muted">Valor ARL</label><input
-                                                    type="number" step="1" name="arl_valor" id="val_arl"
-                                                    class="form-control form-control-sm" value="0"
-                                                    onkeyup="calcularTotal()"></div>
-                                        </div>
-
-                                        <div class="row g-2 mb-2 align-items-end">
-                                            <div class="col-6">
-                                                <label class="small text-muted">AFP</label>
-                                                <select name="afp_nombre" class="form-select form-select-sm"
-                                                        id="afp_select" onchange="toggleOtro('afp')">
-                                                    <option value="COLPENSIONES">COLPENSIONES</option>
-                                                    <option value="PORVENIR">PORVENIR</option>
-                                                    <option value="PROTECCION">PROTECCIÓN</option>
-                                                    <option value="COLFONDOS">COLFONDOS</option>
-                                                    <option value="SKANDIA">SKANDIA</option>
-                                                    <option value="OTRA">Otra</option>
-                                                </select>
-                                                <input type="text" name="afp_nombre_otro" id="afp_otro"
-                                                       class="form-control form-control-sm mt-1" style="display:none;"
-                                                       placeholder="Escriba la AFP">
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="small text-muted">Valor AFP</label>
-                                                <input type="number" step="1" name="afp_valor" id="val_afp"
-                                                       class="form-control form-control-sm" value="0"
-                                                       onkeyup="calcularTotal()">
-                                            </div>
-                                        </div>
-
-                                        <div class="row g-2 mb-3">
-                                            <div class="col-6">
-                                                <label class="small text-muted">SENA</label>
-                                                <input type="number" step="1" name="sena_valor" id="val_sena"
-                                                       class="form-control form-control-sm" value="0"
-                                                       onkeyup="calcularTotal()">
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="small text-muted">ICBF</label>
-                                                <input type="number" step="1" name="icbf_valor" id="val_icbf"
-                                                       class="form-control form-control-sm" value="0"
-                                                       onkeyup="calcularTotal()">
-                                            </div>
-                                        </div>
-
-                                        <div class="bg-dark text-white p-2 rounded d-flex justify-content-between align-items-center">
-                                            <span class="fw-bold small text-uppercase">Total Planilla:</span>
-                                            <input type="number" name="valor_total_planilla" id="total_planilla"
-                                                   class="form-control form-control-sm text-end fw-bold bg-transparent text-white border-0 w-50"
-                                                   value="0" readonly>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="accordion-item border-0 shadow-sm mb-3">
-                                <h2 class="accordion-header">
-                                    <button class="accordion-button collapsed bg-white text-dark fw-bold" type="button"
-                                            data-bs-toggle="collapse" data-bs-target="#sec3">
-                                        3. Actividades y Observaciones
-                                    </button>
-                                </h2>
-                                <div id="sec3" class="accordion-collapse collapse"
-                                     data-bs-parent="#accordionSupervision">
-                                    <div class="accordion-body bg-white">
-                                        <div class="mb-2">
-                                            <label class="small text-muted">Actividades Ejecutadas</label>
-                                            <textarea name="actividades" class="form-control form-control-sm"
-                                                      rows="3"></textarea>
-                                        </div>
-                                        <div class="mb-2 p-2 border rounded bg-light">
-                                            <label class="small fw-bold text-primary mb-1"><i
-                                                    class="bi bi-file-text"></i> Plantilla de Observaciones</label>
-                                            <select id="selector_plantilla_obs"
-                                                    class="form-select form-select-sm border-primary mb-2"
-                                                    onchange="cargarPlantilla()">
-                                                <option value="">-- Escribir manualmente --</option>
-                                                <option value="sin_descuento">Cumplimiento Total (Sin Descuento)
-                                                </option>
-                                                <option value="con_descuento">Cumplimiento Parcial (Con Descuento)
-                                                </option>
-                                                <option value="recuperacion_de_descuento">Recuperacion de Descuento
-                                                </option>
+                    <div class="accordion" id="accordionSupervision">
+                        <!-- ACORDEÓN 1: DATOS Y VALORES -->
+                        <div class="accordion-item border-0 mb-2 shadow-sm">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button bg-white text-dark fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#sec1">
+                                    1. Datos del Informe y Valores
+                                </button>
+                            </h2>
+                            <div id="sec1" class="accordion-collapse collapse show" data-bs-parent="#accordionSupervision">
+                                <div class="accordion-body bg-white">
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-md-3">
+                                            <label class="small fw-bold">Tipo de Informe</label>
+                                            <select name="tipo_informe" class="form-select form-select-sm" required>
+                                                <option value="" disabled selected>Seleccione...</option>
+                                                <option value="PARCIAL">PARCIAL</option>
+                                                <option value="FINAL">FINAL</option>
                                             </select>
-
-                                            <label class="small text-muted">Texto de la Observación (Editable)</label>
-                                            <textarea name="observaciones" id="observaciones_textarea"
-                                                      class="form-control form-control-sm border-warning" rows="6"
-                                                      placeholder="Escribe o selecciona una plantilla..."></textarea>
                                         </div>
-                                        <div class="row g-2">
-                                            <div class="col-6"><label class="small text-muted">Act.</label><input
-                                                    type="text" name="act" class="form-control form-control-sm"></div>
-                                            <div class="col-6"><label class="small text-muted">N° Folios</label><input
-                                                    type="text" name="folios" class="form-control form-control-sm">
-                                            </div>
+                                        <div class="col-md-3">
+                                            <label class="small text-muted">Periodo Desde</label>
+                                            <input type="date" name="periodo_desde" class="form-control form-control-sm" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small text-muted">Periodo Hasta</label>
+                                            <input type="date" name="periodo_hasta" class="form-control form-control-sm" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small fw-bold text-danger">Fecha Firma</label>
+                                            <input type="date" name="fecha_firma" class="form-control form-control-sm border-danger" required>
                                         </div>
                                     </div>
+
+                                    <div class="row g-2">
+                                        <div class="col-md-3">
+                                            <label class="small fw-bold">Pago N°</label>
+                                            <input type="number" name="numero_pago" value="{{ proximo_pago }}" class="form-control form-control-sm text-center fw-bold text-success" readonly>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="small text-muted">Cuentas de Cobro</label>
+                                            <input type="text" name="cuentas_cobro" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="small text-muted">Otro Si</label>
+                                            <input type="text" name="otro_si" class="form-control form-control-sm" placeholder="N/A">
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-2 mt-2">
+                                        <div class="col-md-12">
+                                            <label class="small fw-bold text-primary">Valor a Pagar (Causación este mes)</label>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">$</span>
+                                                <input type="number" step="1" name="valor_a_pagar" value="{{ valor_mensual_sugerido if valor_mensual_sugerido > 0 else '' }}" class="form-control" placeholder="0" required>
+                                            </div>
+                                        </div>
+                                        <input type="hidden" name="valor_pagado" value="{{ acumulado_por_girar if acumulado_por_girar > 0 else 0 }}">
+                                    </div>
+                                    <div class="mt-2 text-muted small"><i class="bi bi-info-circle"></i> El valor pagado se heredará automáticamente basado en el acumulado financiero.</div>
                                 </div>
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-success w-100 fw-bold py-2 shadow-sm">
-                            <i class="bi bi-check-circle"></i> Guardar Supervisión
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-5">
-            <div class="card shadow-sm border-0 mb-4 bg-dark text-white">
-                <div class="card-body">
-                    <h5 class="text-uppercase text-white-50 mb-1" style="font-size: 0.75rem;">
-                        Contrato {{ contrato.numero_contrato }}</h5>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h3 class="card-title h4 mb-0">{{ contrato.contratista.nombre }}</h3>
-                        <a href="/contrato/editar_info/{{ contrato.numero_contrato }}"
-                           class="btn btn-outline-light btn-sm" title="Editar Información del Contrato">
-                            <i class="bi bi-pencil-square"></i>
-                        </a>
-                    </div>
-                    <p class="mb-4 text-white-50 small">C.C. / NIT: {{ contrato.contratista.identificacion }}</p>
-
-                    <hr class="border-secondary">
-
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-white">Valor Inicial:</span>
-                            <span class="fw-bold">${{ "{:,.0f}".format(contrato.valor_total) }}</span>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-white">Valor Final (Con adiciones):</span>
-                            <span class="fw-bold text-info">${{ "{:,.0f}".format(contrato.valor_final if contrato.valor_final else contrato.valor_total) }}</span>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-white">Total Pagado a la Fecha:</span>
-                            <span class="fw-bold text-success">${{ "{:,.0f}".format(total_pagado) }}</span>
-                        </div>
-                    </div>
-
-                    <div class="mb-4 border-top border-secondary pt-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-white fw-bold">Saldo Presupuestal Disponible:</span>
-                            <span class="fs-5 fw-bold text-warning">${{ "{:,.0f}".format(saldo) }}</span>
-                        </div>
-                        <small class="text-white-50 d-block lh-1 mt-1" style="font-size: 0.7rem;">
-                            Presupuesto libre descontando todas las causaciones (Valor a Pagar).
-                        </small>
-                    </div>
-
-                    <div class="mb-1">
-                        <div class="d-flex justify-content-between align-items-end mb-1">
-                            <span class="text-white small">Progreso de Pago</span>
-                            <span class="fw-bold text-info">{{ porcentaje }}%</span>
-                        </div>
-                        <div class="progress bg-secondary" style="height: 15px; border-radius: 10px;">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-info"
-                                 role="progressbar"
-                                 style="width: {{ porcentaje }}%"
-                                 aria-valuenow="{{ porcentaje }}"
-                                 aria-valuemin="0"
-                                 aria-valuemax="100">
-                            </div>
-                        </div>
-                    </div>
-                    <small class="text-white-50 d-block mt-2 text-center" style="font-size: 0.7rem;">
-                        Cálculo basado en el valor final del contrato
-                    </small>
-                </div>
-            </div>
-
-            <h6 class="fw-bold text-secondary mb-3">Historial de Supervisiones ({{ pagos|length }})</h6>
-            <div class="list-group">
-                {% for p in pagos %}
-                    <div class="list-group-item list-group-item-action mb-3 shadow-sm rounded border-start border-primary border-4">
-                        <div class="d-flex w-100 justify-content-between align-items-center mb-2">
-                            <h6 class="mb-0 fw-bold text-primary">Pago #{{ p.numero_pago }}</h6>
-
-                            <div class="d-flex gap-2">
-                                <a href="/pago/pdf/{{ p.id }}" class="btn btn-outline-danger btn-sm py-0 px-2" title="Descargar Informe PDF" target="_blank">
-                                    <i class="bi bi-file-earmark-pdf-fill"></i>
-                                </a>
-                                <a href="/pago/editar/{{ p.id }}" class="btn btn-outline-warning btn-sm py-0 px-2" title="Editar Pago">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <form action="/pago/eliminar/{{ p.id }}" method="POST"
-                                      onsubmit="return confirm('¿Está seguro de eliminar este pago? Esta acción recalculará los saldos.');">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Eliminar Pago">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </form>
+                        <!-- ACORDEÓN 2: SEGURIDAD SOCIAL -->
+                        <div class="accordion-item border-0 mb-2 shadow-sm">
+                            <h2 class="accordion-header d-flex justify-content-between align-items-center bg-white pe-3">
+                                <button class="accordion-button collapsed bg-white text-dark fw-bold w-auto flex-grow-1"
+                                        type="button" data-bs-toggle="collapse" data-bs-target="#sec2">
+                                    2. Seguridad Social y Parafiscales
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-success fw-bold border-2"
+                                        onclick="agregarPlanilla()"><i class="bi bi-plus-circle"></i> Agregar Planilla
+                                </button>
+                            </h2>
+                            <div id="sec2" class="accordion-collapse collapse" data-bs-parent="#accordionSupervision">
+                                <!-- CONTENEDOR DINÁMICO DE PLANILLAS -->
+                                <div class="accordion-body bg-light" id="contenedor_planillas">
+                                    <!-- JavaScript inyectará las planillas aquí -->
+                                </div>
+                                <!-- TOTAL GLOBAL -->
+                                <div class="bg-dark text-white p-3 m-3 mt-0 rounded d-flex justify-content-between align-items-center shadow">
+                                    <span class="fw-bold text-uppercase">Total Global Pagado (SS):</span>
+                                    <span class="fs-5 fw-bold text-success" id="gran_total_ss">$ 0</span>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="row mb-2">
-                            <div class="col-6">
-                                <small class="text-muted d-block">A Pagar (Causado)</small>
-                                <span class="small fw-bold">${{ "{:,.0f}".format(p.valor_a_pagar) }}</span>
+                        <!-- ACORDEÓN 3: OBSERVACIONES -->
+                        <div class="accordion-item border-0 shadow-sm mb-3">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed bg-white text-dark fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#sec3">
+                                    3. Actividades y Observaciones
+                                </button>
+                            </h2>
+                            <div id="sec3" class="accordion-collapse collapse" data-bs-parent="#accordionSupervision">
+                                <div class="accordion-body bg-white">
+                                    <div class="mb-2">
+                                        <label class="small text-muted">Actividades Ejecutadas</label>
+                                        <textarea name="actividades" class="form-control form-control-sm" rows="3"></textarea>
+                                    </div>
+                                    <div class="mb-2 p-2 border rounded bg-light">
+                                        <label class="small fw-bold text-primary mb-1"><i class="bi bi-file-text"></i> Plantilla de Observaciones</label>
+                                        <select id="selector_plantilla_obs" class="form-select form-select-sm border-primary mb-2" onchange="cargarPlantilla()">
+                                            <option value="">-- Escribir manualmente --</option>
+                                            <option value="sin_descuento">Cumplimiento Total (Sin Descuento)</option>
+                                            <option value="con_descuento">Cumplimiento Parcial (Con Descuento)</option>
+                                            <option value="recuperacion_de_descuento">Recuperación de Descuento</option>
+                                        </select>
+                                        <label class="small text-muted">Texto (Editable)</label>
+                                        <textarea name="observaciones" id="observaciones_textarea" class="form-control form-control-sm border-warning" rows="6"></textarea>
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-6"><label class="small text-muted">Act.</label><input type="text" name="act" class="form-control form-control-sm"></div>
+                                        <div class="col-6"><label class="small text-muted">N° Folios</label><input type="text" name="folios" class="form-control form-control-sm"></div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-6">
-                                <small class="text-muted d-block">Pagado (Girado)</small>
-                                <span class="small fw-bold text-success">${{ "{:,.0f}".format(p.valor_pagado_progresivo) }}</span>
-                            </div>
-                        </div>
-
-                        <div class="p-2 bg-light rounded text-muted" style="font-size: 0.75rem;">
-                            <b>Periodo:</b> {{ p.periodo_cotizado }} | <b>Planilla:</b> {{ p.planilla_no }}
                         </div>
                     </div>
-                {% endfor %}
+
+                    <button type="submit" class="btn btn-success w-100 fw-bold py-2 shadow-sm">
+                        <i class="bi bi-check-circle"></i> Guardar Supervisión
+                    </button>
+                </form>
             </div>
         </div>
     </div>
 
-    <script>
-        function toggleOtro(tipo) {
-            let select = document.getElementById(tipo + '_select');
-            let input = document.getElementById(tipo + '_otro');
-            input.style.display = (select.value === 'OTRA') ? 'block' : 'none';
-        }
+    <!-- COLUMNA DERECHA: RESUMEN Y PAGOS -->
+    <div class="col-md-5">
+        <div class="card shadow-sm border-0 mb-4 bg-dark text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <h5 class="text-uppercase text-white-50 mb-0" style="font-size: 0.75rem;">Contrato {{ contrato.numero_contrato }}</h5>
+                    {% if contrato.estado == 'INACTIVO' %}
+                        <span class="badge bg-danger">ARCHIVADO</span>
+                    {% endif %}
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="card-title h4 mb-0">{{ contrato.contratista.nombre }}</h3>
+                    <div class="d-flex gap-1">
+                        <a href="/contratista/{{ contrato.contratista_id }}/editar" class="btn btn-outline-light btn-sm" title="Editar Contratista"><i class="bi bi-person-gear"></i></a>
+                        <a href="/contrato/editar_info/{{ contrato.numero_contrato }}" class="btn btn-outline-light btn-sm" title="Editar Contrato"><i class="bi bi-pencil-square"></i></a>
+                    </div>
+                </div>
+                <p class="mb-4 text-white-50 small">C.C. / NIT: {{ contrato.contratista.identificacion }}</p>
 
-        function calcularTotal() {
-            let eps = parseInt(document.getElementById('val_eps').value) || 0;
-            let arl = parseInt(document.getElementById('val_arl').value) || 0;
-            let afp = parseInt(document.getElementById('val_afp').value) || 0;
-            let sena = parseInt(document.getElementById('val_sena').value) || 0;
-            let icbf = parseInt(document.getElementById('val_icbf').value) || 0;
-            let ccf = 0; // Se puede añadir campo si es necesario
+                <hr class="border-secondary">
 
-            let total = eps + arl + afp + sena + icbf + ccf;
-            document.getElementById('total_planilla').value = total;
-        }
+                <div class="mb-3 d-flex justify-content-between align-items-center">
+                    <span class="text-white">Valor Inicial:</span>
+                    <span class="fw-bold">${{ "{:,.0f}".format(contrato.valor_total) }}</span>
+                </div>
+                <div class="mb-3 d-flex justify-content-between align-items-center">
+                    <span class="text-white">Valor Final (Con adiciones):</span>
+                    <span class="fw-bold text-info">${{ "{:,.0f}".format(contrato.valor_final if contrato.valor_final else contrato.valor_total) }}</span>
+                </div>
+                <div class="mb-3 d-flex justify-content-between align-items-center">
+                    <span class="text-white">Total Pagado a la Fecha:</span>
+                    <span class="fw-bold text-success">${{ "{:,.0f}".format(total_pagado) }}</span>
+                </div>
 
+                <div class="mb-4 border-top border-secondary pt-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-white fw-bold">Saldo Presupuestal Disponible:</span>
+                        <span class="fs-5 fw-bold text-warning">${{ "{:,.0f}".format(saldo) }}</span>
+                    </div>
+                    <small class="text-white-50 d-block lh-1 mt-1" style="font-size: 0.7rem;">Presupuesto libre descontando todas las causaciones (Valor a Pagar).</small>
+                </div>
 
-        // --- LÓGICA DE PLANTILLAS DE OBSERVACIONES ---
-        const plantillaSinDescuento = `Una vez verificado el informe de actividades, los soportes allegados y demás evidencias presentadas por el CONTRATISTA, se constata el cumplimiento de las obligaciones contractuales correspondientes al periodo evaluado, conforme a lo establecido en el contrato. En consecuencia, desde la supervisión se conceptúa favorablemente el cumplimiento de las actividades desarrolladas y se autoriza el trámite de pago de la cuenta de cobro presentada, por encontrarse debidamente soportada. No obstante, se recomienda al CONTRATISTA mantener vigente su afiliación a las administradoras del Sistema General de Seguridad Social Integral, así como continuar efectuando de manera oportuna los aportes correspondientes, en cumplimiento de la normativa vigente aplicable y de las obligaciones contractuales asumidas, mínimo, mientras se encuentre vigente el contrato.`;
-        const plantillaConDescuento = `Verificado lo informes de actividades, los soportes allegados y demás evidencias presentadas por el CONTRATISTA, se evidencia un cumplimiento parcial de las obligaciones contractuales correspondientes al periodo evaluado, conforme a lo establecido en el contrato y en el plan de actividades aprobado. Se deja constancia de que no se ejecutó la totalidad de las actividades previstas, situación que se encuentra debidamente soportada en la verificación realizada por la supervisión. En consecuencia, y en aplicación del principio de pago contra prestación efectivamente ejecutada, así como de lo pactado en el contrato, la supervisión determina el reconocimiento y pago únicamente de las actividades efectivamente desarrolladas y soportadas, procediendo al ajuste del valor de la cuenta de cobro en proporción a dicho cumplimiento. Por lo anterior, se autoriza el trámite de pago por el valor ajustado, conforme a la verificación efectuada. Finalmente, se recomienda al CONTRATISTA mantener vigente su afiliación al Sistema General de Seguridad Social Integral y efectuar oportunamente los aportes correspondientes, en cumplimiento de la normativa vigente y de las obligaciones contractuales asumidas.`;
-        const plantillaRecuperacionDescuento = `Verificado el informe de actividades, los soportes allegados y demás evidencias presentadas por el CONTRATISTA, se evidencia que durante el periodo evaluado se ejecutaron actividades adicionales y/o se subsanaron aquellas que dieron lugar a la aplicación de un descuento en periodos anteriores, dentro del mismo término de ejecución contractual. En ese sentido, la supervisión constata que las actividades previamente no reconocidas fueron efectivamente desarrolladas y debidamente soportadas, cumpliendo con las condiciones técnicas y contractuales exigidas. En consecuencia, y en aplicación del principio de reconocimiento de la prestación efectivamente ejecutada, se autoriza la recuperación del valor descontado, en proporción a las actividades verificadas, procediendo su inclusión en el trámite de pago correspondiente al presente periodo. Lo anterior se realiza sin que ello implique modificación de las condiciones contractuales, sino en garantía del equilibrio contractual y del pago justo por las actividades efectivamente ejecutadas y acreditadas.`
+                <div class="mb-1">
+                    <div class="d-flex justify-content-between align-items-end mb-1">
+                        <span class="text-white small">Progreso de Pago</span>
+                        <span class="fw-bold text-info">{{ porcentaje }}%</span>
+                    </div>
+                    <div class="progress bg-secondary" style="height: 15px; border-radius: 10px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: {{ porcentaje }}%;"></div>
+                    </div>
+                </div>
+                <small class="text-white-50 d-block mt-2 text-center" style="font-size: 0.7rem;">Cálculo basado en el valor final del contrato</small>
+            </div>
+        </div>
 
-        function cargarPlantilla() {
-            const selector = document.getElementById('selector_plantilla_obs').value;
-            const textarea = document.getElementById('observaciones_textarea');
+        <h6 class="fw-bold text-secondary mb-3">Historial de Supervisiones ({{ pagos|length }})</h6>
+        <div class="list-group">
+            {% for p in pagos %}
+                <div class="list-group-item list-group-item-action mb-3 shadow-sm rounded border-start border-primary border-4">
+                    <div class="d-flex w-100 justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0 fw-bold text-primary">Pago #{{ p.numero_pago }}</h6>
+                        <div class="d-flex gap-2">
+                            <a href="/pago/pdf/{{ p.id }}" class="btn btn-outline-danger btn-sm py-0 px-2" title="Descargar PDF" target="_blank"><i class="bi bi-file-earmark-pdf-fill"></i></a>
+                            <a href="/pago/editar/{{ p.id }}" class="btn btn-outline-warning btn-sm py-0 px-2" title="Editar"><i class="bi bi-pencil"></i></a>
+                            <form action="/pago/eliminar/{{ p.id }}" method="POST" onsubmit="return confirm('¿Eliminar pago? Esto recalculará los saldos.');">
+                                <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Eliminar"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-6">
+                            <small class="text-muted d-block">A Pagar (Causado)</small>
+                            <span class="small fw-bold">${{ "{:,.0f}".format(p.valor_a_pagar) }}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Pagado (Girado)</small>
+                            <span class="small fw-bold text-success">${{ "{:,.0f}".format(p.valor_pagado_progresivo) }}</span>
+                        </div>
+                    </div>
+                    <div class="p-2 bg-light rounded text-muted" style="font-size: 0.75rem;">
+                        <b>Periodo:</b> {{ p.periodo_cotizado }} | <b>Planilla:</b> {{ p.planilla_no }}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
 
-            if (selector === 'sin_descuento') {
-                textarea.value = plantillaSinDescuento;
-            } else if (selector === 'con_descuento') {
-                textarea.value = plantillaConDescuento;
-            } else if (selector === 'recuperacion_de_descuento') {
-                textarea.value = plantillaRecuperacionDescuento;
-            } else {
-                textarea.value = '';
-            }
-        }
+<script>
+    function toggleOtro(tipo) {
+        let select = document.getElementById(tipo + '_select');
+        let input = document.getElementById(tipo + '_otro');
+        input.style.display = (select.value === 'OTRA') ? 'block' : 'none';
+    }
 
-    </script>
+    function calcularTotal() {
+        let eps = parseInt(document.getElementById('val_eps').value) || 0;
+        let arl = parseInt(document.getElementById('val_arl').value) || 0;
+        let afp = parseInt(document.getElementById('val_afp').value) || 0;
+        let sena = parseInt(document.getElementById('val_sena').value) || 0;
+        let icbf = parseInt(document.getElementById('val_icbf').value) || 0;
+        document.getElementById('total_planilla').value = eps + arl + afp + sena + icbf;
+    }
+
+    const plantillaSinDescuento = `Una vez verificado el informe de actividades, los soportes allegados y demás evidencias presentadas por el CONTRATISTA, se constata el cumplimiento de las obligaciones contractuales correspondientes al periodo evaluado, conforme a lo establecido en el contrato. En consecuencia, desde la supervisión se conceptúa favorablemente el cumplimiento de las actividades desarrolladas y se autoriza el trámite de pago de la cuenta de cobro presentada, por encontrarse debidamente soportada. No obstante, se recomienda al CONTRATISTA mantener vigente su afiliación a las administradoras del Sistema General de Seguridad Social Integral, así como continuar efectuando de manera oportuna los aportes correspondientes, en cumplimiento de la normativa vigente aplicable y de las obligaciones contractuales asumidas, mínimo, mientras se encuentre vigente el contrato.`;
+    const plantillaConDescuento = `Verificado lo informes de actividades, los soportes allegados y demás evidencias presentadas por el CONTRATISTA, se evidencia un cumplimiento parcial de las obligaciones contractuales correspondientes al periodo evaluado, conforme a lo establecido en el contrato y en el plan de actividades aprobado. Se deja constancia de que no se ejecutó la totalidad de las actividades previstas, situación que se encuentra debidamente soportada en la verificación realizada por la supervisión. En consecuencia, y en aplicación del principio de pago contra prestación efectivamente ejecutada, así como de lo pactado en el contrato, la supervisión determina el reconocimiento y pago únicamente de las actividades efectivamente desarrolladas y soportadas, procediendo al ajuste del valor de la cuenta de cobro en proporción a dicho cumplimiento. Por lo anterior, se autoriza el trámite de pago por el valor ajustado, conforme a la verificación efectuada. Finalmente, se recomienda al CONTRATISTA mantener vigente su afiliación al Sistema General de Seguridad Social Integral y efectuar oportunamente los aportes correspondientes, en cumplimiento de la normativa vigente y de las obligaciones contractuales asumidas.`;
+    const plantillaRecuperacionDescuento = `Verificado el informe de actividades, los soportes allegados y demás evidencias presentadas por el CONTRATISTA, se evidencia que durante el periodo evaluado se ejecutaron actividades adicionales y/o se subsanaron aquellas que dieron lugar a la aplicación de un descuento en periodos anteriores, dentro del mismo término de ejecución contractual. En ese sentido, la supervisión constata que las actividades previamente no reconocidas fueron efectivamente desarrolladas y debidamente soportadas, cumpliendo con las condiciones técnicas y contractuales exigidas. En consecuencia, y en aplicación del principio de reconocimiento de la prestación efectivamente ejecutada, se autoriza la recuperación del valor descontado, en proporción a las actividades verificadas, procediendo su inclusión en el trámite de pago correspondiente al presente periodo. Lo anterior se realiza sin que ello implique modificación de las condiciones contractuales, sino en garantía del equilibrio contractual y del pago justo por las actividades efectivamente ejecutadas y acreditadas.`;
+
+    function cargarPlantilla() {
+        const selector = document.getElementById('selector_plantilla_obs').value;
+        const textarea = document.getElementById('observaciones_textarea');
+
+        if (selector === 'sin_descuento') textarea.value = plantillaSinDescuento;
+        else if (selector === 'con_descuento') textarea.value = plantillaConDescuento;
+        else if (selector === 'recuperacion_de_descuento') textarea.value = plantillaRecuperacionDescuento;
+        else textarea.value = '';
+    }
+
+    let planillaCount = 0;
+
+    function agregarPlanilla() {
+        planillaCount++;
+        const container = document.getElementById('contenedor_planillas');
+        const block = document.createElement('div');
+        block.className = 'planilla-block bg-white p-3 border border-primary rounded shadow-sm mb-3 position-relative';
+
+        // Botón eliminar para todos menos el primero
+        const btnEliminar = planillaCount > 1 ?
+            `<button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-2" onclick="this.closest('.planilla-block').remove(); calcularGranTotal();" title="Eliminar Planilla"><i class="bi bi-trash"></i></button>` : '';
+
+        const template = `
+        ${btnEliminar}
+        <h6 class="fw-bold text-primary border-bottom pb-2 mb-3"><i class="bi bi-receipt"></i> Planilla N° ${planillaCount}</h6>
+        <div class="row g-2 mb-3">
+            <div class="col-md-4"><label class="small text-muted">N° Planilla</label><input type="text" name="planilla_no[]" class="form-control form-control-sm"></div>
+            <div class="col-md-4"><label class="small text-muted">Periodo Cotizado</label><input type="text" name="periodo_cotizado[]" class="form-control form-control-sm"></div>
+            <div class="col-md-4"><label class="small text-muted">IBC</label><input type="number" step="1" name="ibc[]" class="form-control form-control-sm"></div>
+        </div>
+
+        <div class="row g-2 mb-2 align-items-end">
+            <div class="col-6"><label class="small text-muted">EPS</label>
+                <select name="eps_nombre[]" class="form-select form-select-sm" onchange="toggleOtroDin(this)">
+                    <option value="" disabled selected>Seleccione EPS...</option>
+                    <option value="ALIANSALUD">ALIANSALUD</option>
+                    <option value="ASMET SALUD">ASMET SALUD</option>
+                    <option value="CAJACOPI">CAJACOPI</option>
+                    <option value="CAPITAL SALUD">CAPITAL SALUD</option>
+                    <option value="COMFENALCO VALLE">COMFENALCO VALLE</option>
+                    <option value="COMPENSAR">COMPENSAR</option>
+                    <option value="COOSALUD">COOSALUD</option>
+                    <option value="EPS SANITAS">EPS SANITAS</option>
+                    <option value="FAMISANAR">FAMISANAR</option>
+                    <option value="MUTUAL SER">MUTUAL SER</option>
+                    <option value="NUEVA EPS">NUEVA EPS</option>
+                    <option value="SALUD TOTAL">SALUD TOTAL</option>
+                    <option value="SAVIA SALUD">SAVIA SALUD</option>
+                    <option value="SOS">SOS</option>
+                    <option value="SURA">SURA</option>
+                    <option value="OTRA">Otra (Escribir...)</option>
+                </select>
+                <input type="text" name="eps_nombre_otro[]" class="form-control form-control-sm mt-1 input-otro" style="display:none;">
+            </div>
+            <div class="col-6"><label class="small text-muted">Valor EPS</label><input type="number" step="1" name="eps_valor[]" class="form-control form-control-sm val-ss" value="0" onkeyup="calcularSubtotal(this)"></div>
+        </div>
+
+        <div class="row g-2 mb-2 align-items-end">
+            <div class="col-6"><label class="small text-muted">ARL</label>
+                <select name="arl_nombre[]" class="form-select form-select-sm" onchange="toggleOtroDin(this)">
+                    <option value="" disabled selected>Seleccione ARL...</option>
+                    <option value="ALFA">ALFA</option>
+                    <option value="AURORA">AURORA</option>
+                    <option value="BOLIVAR">BOLÍVAR</option>
+                    <option value="COLMENA">COLMENA</option>
+                    <option value="EQUIDAD">EQUIDAD</option>
+                    <option value="MAPFRE">MAPFRE</option>
+                    <option value="POSITIVA">POSITIVA</option>
+                    <option value="SURA">SURA</option>
+                    <option value="OTRA">Otra (Escribir...)</option>
+                </select>
+                <input type="text" name="arl_nombre_otro[]" class="form-control form-control-sm mt-1 input-otro" style="display:none;">
+            </div>
+            <div class="col-6"><label class="small text-muted">Valor ARL</label><input type="number" step="1" name="arl_valor[]" class="form-control form-control-sm val-ss" value="0" onkeyup="calcularSubtotal(this)"></div>
+        </div>
+
+        <div class="row g-2 mb-2 align-items-end">
+            <div class="col-6">
+                <label class="small text-muted">AFP</label>
+                <select name="afp_nombre[]" class="form-select form-select-sm" onchange="toggleOtroDin(this)">
+                    <option value="" disabled selected>Seleccione AFP...</option>
+                    <option value="COLPENSIONES">COLPENSIONES</option>
+                    <option value="PORVENIR">PORVENIR</option>
+                    <option value="PROTECCION">PROTECCIÓN</option>
+                    <option value="COLFONDOS">COLFONDOS</option>
+                    <option value="SKANDIA">SKANDIA</option>
+                    <option value="OTRA">Otra (Escribir...)</option>
+                </select>
+                <input type="text" name="afp_nombre_otro[]" class="form-control form-control-sm mt-1 input-otro" style="display:none;">
+            </div>
+            <div class="col-6"><label class="small text-muted">Valor AFP</label><input type="number" step="1" name="afp_valor[]" class="form-control form-control-sm val-ss" value="0" onkeyup="calcularSubtotal(this)"></div>
+        </div>
+
+        <div class="row g-2 mb-2 align-items-end">
+            <div class="col-6">
+                <label class="small text-muted">CCF</label>
+                <select name="ccf_nombre[]" class="form-select form-select-sm" onchange="toggleOtroDin(this)">
+                    <option value="" disabled selected>Seleccione CCF...</option>
+                    <option value="COMFACAUCA">COMFACAUCA</option>
+                    <option value="COMFENALCO">COMFENALCO</option>
+                    <option value="OTRA">Otra (Escribir...)</option>
+                </select>
+                <input type="text" name="ccf_nombre_otro[]" class="form-control form-control-sm mt-1 input-otro" style="display:none;">
+            </div>
+            <div class="col-6"><label class="small text-muted">Valor CCF</label><input type="number" step="1" name="ccf_valor[]" class="form-control form-control-sm val-ss" value="0" onkeyup="calcularSubtotal(this)"></div>
+        </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-6"><label class="small text-muted">Valor SENA</label><input type="number" step="1" name="sena_valor[]" class="form-control form-control-sm val-ss" value="0" onkeyup="calcularSubtotal(this)"></div>
+            <div class="col-6"><label class="small text-muted">Valor ICBF</label><input type="number" step="1" name="icbf_valor[]" class="form-control form-control-sm val-ss" value="0" onkeyup="calcularSubtotal(this)"></div>
+        </div>
+
+        <div class="bg-secondary text-white p-2 rounded d-flex justify-content-between align-items-center">
+            <span class="fw-bold small text-uppercase">Subtotal Planilla:</span>
+            <input type="number" name="valor_total_planilla[]" class="form-control form-control-sm text-end fw-bold bg-transparent text-white border-0 w-50 subtotal-input" value="0" readonly>
+        </div>
+    `;
+        block.innerHTML = template;
+        container.appendChild(block);
+    }
+
+    function toggleOtroDin(selectElem) {
+        const inputOtro = selectElem.nextElementSibling;
+        inputOtro.style.display = selectElem.value === 'OTRA' ? 'block' : 'none';
+        if (selectElem.value !== 'OTRA') inputOtro.value = '';
+    }
+
+    function calcularSubtotal(inputElem) {
+        const block = inputElem.closest('.planilla-block');
+        let sum = 0;
+        block.querySelectorAll('.val-ss').forEach(inp => {
+            sum += (parseFloat(inp.value) || 0);
+        });
+        block.querySelector('.subtotal-input').value = sum;
+        calcularGranTotal();
+    }
+
+    function calcularGranTotal() {
+        let granTotal = 0;
+        document.querySelectorAll('.subtotal-input').forEach(inp => {
+            granTotal += (parseFloat(inp.value) || 0);
+        });
+        const formatMoneda = new Intl.NumberFormat('es-CO', {
+            style: 'currency',
+            currency: 'COP',
+            maximumFractionDigits: 0
+        });
+        const textElement = document.getElementById('gran_total_ss');
+        if (textElement) textElement.innerText = formatMoneda.format(granTotal);
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        // Al cargar la página, inyectar la primera planilla en blanco
+        agregarPlanilla();
+    });
+</script>
 {% endblock %}

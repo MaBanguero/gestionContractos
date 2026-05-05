@@ -16,23 +16,79 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
   <div class="container-fluid">
     <a class="navbar-brand" href="/"><i class="bi bi-wallet2"></i> CtrlFinanzas</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-toggle="target="#navbarNav">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto">
+      <ul class="navbar-nav me-auto">
         <li class="nav-item">
-          <a class="nav-link active" href="/"><i class="bi bi-speedometer2"></i> Dashboard de Contratos</a>
+          <a class="nav-link active" href="/"><i class="bi bi-speedometer2"></i> Dashboard</a>
         </li>
+        <!-- NUEVO BOTÓN PARA ADMINISTRAR PERFILES -->
+        <li class="nav-item">
+          <a class="nav-link" href="/perfiles"><i class="bi bi-diagram-3"></i> Gestión de Perfiles</a>
+        </li>
+      </ul>
+        <form class="d-flex mx-auto" style="min-width: 450px;" action="/" method="GET">
+    <div class="input-group input-group-sm shadow-sm">
+
+        <!-- SELECTOR DE FILTROS -->
+        <select name="tipo_filtro" class="form-select border-end-0 fw-bold text-secondary" style="max-width: 140px; background-color: #f8f9fa;">
+            <option value="todos" {% if tipo_filtro == 'todos' %}selected{% endif %}>Todos</option>
+            <option value="identificacion" {% if tipo_filtro == 'identificacion' %}selected{% endif %}>Cédula/NIT</option>
+            <option value="nombre" {% if tipo_filtro == 'nombre' %}selected{% endif %}>Nombre</option>
+            <option value="numero_contrato" {% if tipo_filtro == 'numero_contrato' %}selected{% endif %}>N° Contrato</option>
+            <option value="resolucion" {% if tipo_filtro == 'resolucion' %}selected{% endif %}>Resolución</option>
+            <option value="tipologia" {% if tipo_filtro == 'tipologia' %}selected{% endif %}>Tipología</option>
+        </select>
+
+        <span class="input-group-text bg-white border-end-0 border-start-0 text-muted"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" class="form-control border-start-0 ps-0" placeholder="Escriba para buscar..." value="{{ busqueda or '' }}">
+
+        {% if busqueda %}
+            <a href="/" class="btn btn-white border border-start-0 text-danger" title="Limpiar búsqueda"><i class="bi bi-x-circle-fill"></i></a>
+        {% endif %}
+        <button class="btn btn-primary fw-bold" type="submit">Buscar</button>
+    </div>
+</form>
+      <ul class="navbar-nav ms-auto">
+          {% if usuario_actual %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle text-white" href="#" role="button" data-bs-toggle="dropdown">
+                <i class="bi bi-person-circle"></i> Hola, {{ usuario_actual.username|capitalize }}
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="/admin"><i class="bi bi-shield-lock"></i> Configuración Admin</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger" href="/logout"><i class="bi bi-box-arrow-right"></i> Cerrar Sesión</a></li>
+              </ul>
+            </li>
+          {% else %}
+             <li class="nav-item"><a class="nav-link" href="/login">Iniciar Sesión</a></li>
+          {% endif %}
       </ul>
     </div>
   </div>
 </nav>
 
 <div class="container mt-4 mb-5">
+    {% if request.query_params.get("mensaje") %}
+    <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i> {{ request.query_params.get("mensaje") }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
     {% if mensaje %}
     <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
         <i class="bi bi-check-circle-fill me-2"></i> {{ mensaje }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    {% if request.query_params.get("error") %}
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ request.query_params.get("error") }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     {% endif %}

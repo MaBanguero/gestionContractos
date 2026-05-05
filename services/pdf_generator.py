@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from fastapi.templating import Jinja2Templates
 from playwright.sync_api import sync_playwright
-from models.db_models import DBPago, DBContratista
+from models.db_models import DBPago, DBContratista, DBPerfil
 
 # --- DICCIONARIO DE ACTIVIDADES ORIGINAL ---
 ACTIVIDADES_POR_PERFIL = {
@@ -459,71 +459,94 @@ class GeneradorPDF:
         except:
             return str(fecha_raw)
 
-    def _preparar_datos_informe(self, pago: DBPago):
-        c = pago.contrato
-        contratista = c.contratista
+    def _preparar_datos_informe(self, pago: DBPago) -> tuple[dict, list[dict], list[str]]:
+        """
+        Prepara y estructura todos los datos transaccionales, financieros y legales
+        requeridos para la inyección en la plantilla PDF de supervisión.
+        """
+        contrato = pago.contrato
+        contratista = contrato.contratista
 
-        # 1. Lógica Financiera
-        valor_base = c.valor_final if c.valor_final else c.valor_total
-        causado_hasta_hoy = sum((pg.valor_a_pagar or 0) for pg in c.pagos if pg.numero_pago <= pago.numero_pago)
-        saldo_a_pagar = valor_base - causado_hasta_hoy
-        valor_pagado_anterior = sum((pg.valor_a_pagar or 0) for pg in c.pagos if pg.numero_pago < pago.numero_pago)
+        # 1. Cálculos de Ejecución Financiera
+        valor_base = contrato.valor_final if contrato.valor_final else contrato.valor_total
 
-        supervisores = str(c.supervisor or "")
-        firmas = [f.strip() for f in supervisores.replace('#', '-').split('-') if f.strip()]
-        if not firmas:
-            firmas = [supervisores]
+        # Pagos causados hasta el corte actual (incluyendo este)
+        causado_hasta_hoy = sum((pg.valor_a_pagar or 0) for pg in contrato.pagos if pg.numero_pago <= pago.numero_pago)
+        saldo_disponible = valor_base - causado_hasta_hoy
 
-        # 2. FECHA DE FIRMA DINÁMICA (Leída de la DB)
-        # Intentamos obtener la fecha guardada en el pago. Si no existe, usamos la fecha actual.
+        # Pagos girados previamente (excluyendo el actual)
+        valor_pagado_historico = sum(
+            (pg.valor_a_pagar or 0) for pg in contrato.pagos if pg.numero_pago < pago.numero_pago)
+
+        # 2. Extracción y Normalización de Firmas
+        supervisores_raw = str(contrato.supervisor or "")
+        firmas_procesadas = [f.strip() for f in supervisores_raw.replace('#', '-').split('-') if f.strip()]
+        firmas_finales = firmas_procesadas if firmas_procesadas else [supervisores_raw]
+
+        # 3. Resolución Segura de Fechas (Fallback atómico a fecha actual)
         fecha_firma_raw = getattr(pago, 'fecha_firma', None)
+        fecha_operativa = datetime.now()
+
         if fecha_firma_raw:
             try:
-                # Manejamos si llega como string 'YYYY-MM-DD' o como objeto date/datetime
                 if isinstance(fecha_firma_raw, str):
-                    hoy = datetime.strptime(fecha_firma_raw, '%Y-%m-%d')
+                    fecha_operativa = datetime.strptime(fecha_firma_raw, '%Y-%m-%d')
                 else:
-                    hoy = fecha_firma_raw
-            except Exception:
-                hoy = datetime.now()
-        else:
-            hoy = datetime.now()
+                    fecha_operativa = fecha_firma_raw
+            except (ValueError, TypeError):
+                pass  # Se mantiene datetime.now() como fallback seguro
 
-        meses_espanol = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+        meses_espanol = [
+            'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+            'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+        ]
 
-        # 3. Normalización de Perfil y Actividades
-        perfil_db = str(c.perfil or "")
-        perfil_clean = self._normalizar_perfil(perfil_db)
-        actividades_texto = ACTIVIDADES_POR_PERFIL.get(perfil_clean, [f"Actividades según contrato (Perfil detectado: {perfil_db})"])
+        # 4. Extracción Dinámica de Obligaciones Contractuales (Desde Base de Datos)
 
-        honorario_esperado = HONORARIOS_POR_PERFIL.get(perfil_clean, 0)
-        indice_meta = ACTIVIDAD_META_POR_PERFIL.get(perfil_clean, -1)
+        perfil_nombre = str(contrato.perfil or "").strip().upper()
+        perfil_clean = self._normalizar_perfil(perfil_nombre)
+        perfil_db = self.db.query(DBPerfil).filter(DBPerfil.nombre == perfil_nombre).first()
+        honorario_esperado = float(getattr(perfil_db, 'honorario_referencia', 0.0)) if perfil_db else 0.0
         valor_a_pagar_actual = float(pago.valor_a_pagar or 0)
 
         cumple_todo = True
         if honorario_esperado > 0 and valor_a_pagar_actual < honorario_esperado:
             cumple_todo = False
 
-        actividades_finales = []
-        for i, act_desc in enumerate(actividades_texto):
-            cumple_esta_actividad = True
-            if not cumple_todo and i == indice_meta:
-                cumple_esta_actividad = False
+        indice_meta = ACTIVIDAD_META_POR_PERFIL.get(perfil_clean, -1)
 
-            actividades_finales.append({
-                "descripcion": act_desc,
-                "cumple": cumple_esta_actividad
+        actividades_estructuradas = []
+        if perfil_db and perfil_db.actividades:
+            # Garantiza el orden legal estricto definido en la parametrización
+            actividades_ordenadas = sorted(perfil_db.actividades, key=lambda x: x.orden)
+
+            for i, actividad in enumerate(actividades_ordenadas):
+                cumple_esta_actividad = True
+
+                # Si el contratista no cobró el honorario completo, la actividad meta se marca como no cumplida
+                if not cumple_todo and i == indice_meta:
+                    cumple_esta_actividad = False
+
+                actividades_estructuradas.append({
+                    "descripcion": actividad.descripcion,
+                    "cumple": cumple_esta_actividad
+                })
+        else:
+            # Fallback visual de seguridad
+            actividades_estructuradas.append({
+                "descripcion": f"AVISO DE SISTEMA: No se han parametrizado obligaciones para el perfil '{perfil_nombre}'. Por favor, asigne las actividades correspondientes desde el módulo de configuración.",
+                "cumple": False
             })
 
-        # 4. Observaciones directas del formulario
-        observacion_final = str(pago.observaciones or "").strip()
-        if not observacion_final:
-            observacion_final = "No se registraron observaciones adicionales."
+        # 5. Sanitización de Observaciones de Auditoría
+        observaciones_limpias = str(pago.observaciones or "").strip()
+        if not observaciones_limpias:
+            observaciones_limpias = "No se registraron observaciones, salvedades ni novedades adicionales durante este periodo de ejecución."
 
-        # 5. Construcción del diccionario para el PDF
-        informe = {
+        # 6. Construcción del Objeto de Contexto (Payload)
+        informe_payload = {
             "tipo_informe": pago.tipo_informe or "PARCIAL",
-            "numero_contrato": c.numero_contrato,
+            "numero_contrato": contrato.numero_contrato,
             "periodo_desde": pago.periodo_desde,
             "periodo_hasta": pago.periodo_hasta,
             "contratante": "EMPRESA SOCIAL DEL ESTADO NORTE 3 E.S.E.",
@@ -533,24 +556,24 @@ class GeneradorPDF:
             "telefono": contratista.telefono,
             "direccion": contratista.direccion,
             "tipo_persona": contratista.tipo_persona or "NATURAL",
-            "codigo_ciiu": c.codigo_ciiu,
-            "supervisores_nombres": c.supervisor,
-            "supervisores_niveles": c.nivel_prof_supervisor or "N/A",
-            "interventor": c.interventor or "N/A",
-            "cdp": c.cdp,
-            "crp": c.crp,
-            "imputacion": c.imputacion,
-            "valor_contrato": c.valor_total,
-            "fecha_inicio": c.fecha_inicio,
-            "fecha_fin": c.fecha_terminacion,
-            "tiempo_adicion": c.tiempo_adicion or "N/A",
-            "valor_final": c.valor_final or c.valor_total,
-            "forma_pago": c.forma_pago or "No especificada.", # Tomado del contrato
+            "codigo_ciiu": contrato.codigo_ciiu,
+            "supervisores_nombres": contrato.supervisor,
+            "supervisores_niveles": contrato.nivel_prof_supervisor or "N/A",
+            "interventor": contrato.interventor or "N/A",
+            "cdp": contrato.cdp,
+            "crp": contrato.crp,
+            "imputacion": contrato.imputacion,
+            "valor_contrato": contrato.valor_total,
+            "fecha_inicio": contrato.fecha_inicio,
+            "fecha_fin": contrato.fecha_terminacion,
+            "tiempo_adicion": contrato.tiempo_adicion or "N/A",
+            "valor_final": contrato.valor_final or contrato.valor_total,
+            "forma_pago": contrato.forma_pago or "No especificada.",
             "numero_pago": pago.numero_pago,
-            "valor_a_pagar": valor_a_pagar_actual,
+            "valor_a_pagar": float(pago.valor_a_pagar or 0),
             "otro_si": pago.otro_si or 0,
-            "valor_pagado": valor_pagado_anterior,
-            "saldo_a_pagar": saldo_a_pagar,
+            "valor_pagado": valor_pagado_historico,
+            "saldo_a_pagar": saldo_disponible,
             "ibc": pago.ibc or 0,
             "periodo_cotizado": pago.periodo_cotizado,
             "eps_nombre": pago.eps_nombre,
@@ -565,15 +588,15 @@ class GeneradorPDF:
             "total_planilla": pago.valor_total_planilla or 0,
             "planilla_no": pago.planilla_no,
             "retefuente": (str(pago.anexa_cert).upper() == 'SI') if pago.anexa_cert else False,
-            "objeto_contrato": c.objeto,
-            "observaciones": observacion_final,
+            "objeto_contrato": contrato.objeto,
+            "observaciones": observaciones_limpias,
             "folios": pago.folios or '0',
-            "dia_firma": hoy.strftime('%d'),               # Día de la DB
-            "mes_firma": meses_espanol[hoy.month - 1],     # Mes traducido
-            "anio_firma": hoy.strftime('%Y')               # Año de la DB
+            "dia_firma": fecha_operativa.strftime('%d'),
+            "mes_firma": meses_espanol[fecha_operativa.month - 1],
+            "anio_firma": fecha_operativa.strftime('%Y')
         }
 
-        return informe, actividades_finales, firmas
+        return informe_payload, actividades_estructuradas, firmas_finales
 
     # 2. SE ELIMINA EL "async" DE ESTA FUNCIÓN
     def _render_html_to_pdf(self, html_content: str) -> bytes:

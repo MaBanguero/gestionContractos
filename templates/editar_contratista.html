@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-3 d-flex justify-content-between align-items-center">
+    <a href="javascript:history.back()" class="text-decoration-none text-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
+    <a href="/?q={{ contratista.identificacion }}&tipo_filtro=identificacion" class="btn btn-sm btn-outline-dark">
+        <i class="bi bi-folder2-open"></i> Ver contratos de este contratista
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow border-0 border-top border-dark border-3 mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-dark">
+                    <i class="bi bi-person-gear"></i> Editar Datos del Contratista
+                </h5>
+                <span class="badge bg-secondary">{{ contratista.identificacion }}</span>
+            </div>
+            <div class="card-body bg-light">
+                <form action="/contratista/{{ contratista.identificacion }}/editar" method="POST">
+
+                    <div class="row g-3 bg-white p-3 rounded shadow-sm">
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-muted">No. DE IDENTIFICACIÓN</label>
+                            <input type="text" value="{{ contratista.identificacion }}" class="form-control" readonly disabled>
+                            <div class="form-text">No se puede modificar.</div>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="small fw-bold text-muted">NOMBRE COMPLETO</label>
+                            <input type="text" name="nombre" value="{{ contratista.nombre or '' }}"
+                                   class="form-control text-uppercase" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">EXPEDIDA EN</label>
+                            <input type="text" name="expedida_en" value="{{ contratista.expedida_en or '' }}"
+                                   class="form-control text-uppercase">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">No. TELÉFONO y/o CELULAR</label>
+                            <input type="text" name="telefono" value="{{ contratista.telefono or '' }}"
+                                   class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">TIPO DE PERSONA</label>
+                            <select name="tipo_persona" class="form-select">
+                                <option value="NATURAL" {% if contratista.tipo_persona == 'NATURAL' %}selected{% endif %}>NATURAL</option>
+                                <option value="JURIDICA" {% if contratista.tipo_persona == 'JURIDICA' %}selected{% endif %}>JURIDICA</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="small text-muted">DIRECCIÓN</label>
+                            <input type="text" name="direccion" value="{{ contratista.direccion or '' }}"
+                                   class="form-control text-uppercase">
+                        </div>
+                    </div>
+
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-dark fw-bold flex-grow-1 py-2 shadow-sm">
+                            <i class="bi bi-save"></i> Guardar Cambios
+                        </button>
+                        <a href="javascript:history.back()" class="btn btn-outline-secondary py-2">Cancelar</a>
+                    </div>
+                </form>
+
+                {% if contratista.contratos %}
+                <hr class="mt-4">
+                <h6 class="text-muted fw-semibold mb-3"><i class="bi bi-folder2"></i> Contratos asociados</h6>
+                <div class="list-group list-group-flush">
+                    {% for c in contratista.contratos %}
+                    <a href="/contrato/{{ c.numero_contrato }}"
+                       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2">
+                        <span>
+                            <span class="badge bg-secondary me-2">{{ c.numero_contrato }}</span>
+                            {% if c.tipologia and c.tipologia != 'N/A' %}
+                            <small class="text-muted">{{ c.tipologia }}</small>
+                            {% endif %}
+                        </span>
+                        <span class="badge {% if c.estado == 'INACTIVO' %}bg-danger{% else %}bg-success{% endif %}">
+                            {{ c.estado or 'ACTIVO' }}
+                        </span>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

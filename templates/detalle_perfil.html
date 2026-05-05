@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="/perfiles" class="text-decoration-none text-secondary"><i class="bi bi-arrow-left"></i> Volver a Perfiles</a>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow-sm border-0 border-top border-dark border-3 mb-4">
+
+            <!-- CABECERA: Controles Maestros del Perfil -->
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0 text-dark fw-bold">
+                    <i class="bi bi-list-check text-primary me-2"></i> {{ perfil.nombre }}
+                    <span class="badge bg-secondary ms-2 fw-normal" style="font-size: 0.85rem;">
+                        Honorario Base: ${{ "{:,.0f}".format(perfil.honorario_referencia) }}
+                    </span>
+                </h5>
+                <div class="d-flex gap-2">
+                    <!-- Botón para invocar el Modal de Edición del Perfil -->
+                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditarPerfil">
+                        <i class="bi bi-pencil"></i> Editar Perfil
+                    </button>
+                    <!-- Formulario destructivo para Eliminar el Perfil completo -->
+                    <form action="/perfiles/{{ perfil.id }}/eliminar" method="POST" class="m-0" onsubmit="return confirm('¡ADVERTENCIA CRÍTICA!\n\n¿Está seguro de eliminar el perfil {{ perfil.nombre }}?\nEsto destruirá TODAS las obligaciones parametrizadas asociadas a este perfil y no se puede deshacer.');">
+                        <button type="submit" class="btn btn-sm btn-danger">
+                            <i class="bi bi-trash"></i> Eliminar
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card-body bg-light">
+
+                <!-- Lista de Actividades Existentes -->
+                <div class="list-group mb-4">
+                    {% for act in actividades %}
+                    <div class="list-group-item d-flex justify-content-between align-items-start shadow-sm mb-2 rounded border-0 bg-white">
+                        <div class="ms-2 me-auto w-100 overflow-hidden">
+                            <div class="fw-bold text-primary small mb-2">Orden de impresión: {{ act.orden }}</div>
+                            <div style="text-align: justify; font-size: 0.95rem; line-height: 1.5;" class="text-dark">
+                                {{ act.descripcion|safe }}
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 ms-4 align-items-center mt-2">
+                            <a href="/actividades/{{ act.id }}/editar" class="btn btn-outline-primary btn-sm border-0" title="Editar Obligación">
+                                <i class="bi bi-pencil-square fs-5"></i>
+                            </a>
+                            <form action="/actividades/{{ act.id }}/eliminar" method="POST" class="m-0" onsubmit="return confirm('¿Está seguro de eliminar esta obligación del PDF?');">
+                                <input type="hidden" name="perfil_id" value="{{ perfil.id }}">
+                                <button type="submit" class="btn btn-outline-danger btn-sm border-0" title="Eliminar Obligación">
+                                    <i class="bi bi-trash fs-5"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning border-0 shadow-sm"><i class="bi bi-exclamation-triangle"></i> No hay obligaciones parametrizadas. El PDF imprimirá un error de perfil vacío.</div>
+                    {% endfor %}
+                </div>
+
+                <!-- Formulario Agregar Actividad con Editor Visual (CKEditor 5) -->
+                <div class="bg-white p-3 rounded shadow-sm border">
+                    <h6 class="fw-bold text-success mb-3"><i class="bi bi-plus-lg"></i> Agregar Obligación</h6>
+                    <form action="/perfiles/{{ perfil.id }}/actividades" method="POST">
+                        <div class="row g-3">
+                            <div class="col-md-2">
+                                <label class="small text-muted fw-bold">Orden N°</label>
+                                <input type="number" name="orden" class="form-control" value="{{ (actividades|length) + 1 }}" required>
+                            </div>
+                            <div class="col-md-10">
+                                <label class="small text-muted fw-bold">Contenido de la Obligación</label>
+                                <textarea id="editor_actividad" name="descripcion" class="form-control" rows="5" placeholder="Escriba o pegue el contenido aquí..."></textarea>
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-success fw-bold px-4">Guardar Actividad</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Edición del Perfil Padre -->
+<div class="modal fade" id="modalEditarPerfil" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-diagram-3"></i> Editar Perfil Institucional</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/perfiles/{{ perfil.id }}/editar" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Nombre Exacto del Perfil</label>
+                        <input type="text" name="nombre" class="form-control text-uppercase" value="{{ perfil.nombre }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Honorario de Referencia ($)</label>
+                        <input type="number" step="1" name="honorario_referencia" class="form-control" value="{{ perfil.honorario_referencia }}" required>
+                        <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Si el contratista cobra un valor inferior a este monto, el PDF marcará automáticamente la falla en el cumplimiento de la meta.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Descripción (Uso Interno)</label>
+                        <textarea name="descripcion" class="form-control" rows="3">{{ perfil.descripcion }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light shadow-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary shadow-sm fw-bold">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Integración de jQuery y CKEditor 5 (Classic Build) -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.ckeditor.com/ckeditor5/40.2.0/classic/ckeditor.js"></script>
+<script>
+    $(document).ready(function() {
+        ClassicEditor
+            .create(document.querySelector('#editor_actividad'), {
+                toolbar: [
+                    'heading', '|',
+                    'bold', 'italic', '|',
+                    'bulletedList', 'numberedList', '|',
+                    'insertTable', '|',
+                    'undo', 'redo'
+                ],
+                table: {
+                    contentToolbar: [
+                        'tableColumn',
+                        'tableRow',
+                        'mergeTableCells'
+                    ]
+                }
+            })
+            .catch(error => {
+                console.error('Error al inicializar CKEditor 5:', error);
+            });
+    });
+</script>
+{% endblock %}

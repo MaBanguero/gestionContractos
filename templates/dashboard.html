@@ -2,21 +2,28 @@
 
 {% block content %}
 <div class="row mb-4">
-    <div class="col-md-7">
-        <h2 class="text-secondary"><i class="bi bi-folder2-open"></i> Gestión de Contratos</h2>
-        <p class="text-muted">Administra el saldo y la ejecución financiera de todos los contratistas.</p>
+    <div class="col-md-6">
+        <h2 class="text-secondary">
+            <i class="bi {% if solo_inactivos %}bi-archive-fill text-danger{% else %}bi-folder2-open{% endif %}"></i>
+            {% if solo_inactivos %}Contratos Archivados{% else %}Gestión de Contratos{% endif %}
+        </h2>
+        <p class="text-muted">Administra el saldo y la ejecución financiera de los contratistas.</p>
     </div>
-    <div class="col-md-5 text-end">
-        <a href="/exportar_excel" class="btn btn-success shadow-sm me-2">
-            <i class="bi bi-file-earmark-excel"></i> Exportar Base Completa
+    <div class="col-md-6 text-end">
+        <!-- BOTÓN PARA CAMBIAR DE VISTA (ACTIVOS / INACTIVOS) -->
+        <a href="{% if solo_inactivos %}/{% else %}/contratos_pasados{% endif %}" class="btn btn-outline-secondary shadow-sm me-2 fw-bold">
+            <i class="bi bi-archive"></i> {% if solo_inactivos %}Ver Contratos Activos{% else %}Ver Archivo{% endif %}
         </a>
-
-             <a href="/contrato/crear" class="btn btn-primary fw-bold shadow-sm">
-                <i class="bi bi-plus-circle"></i> Nuevo Contrato
-            </a>
+        <a href="/exportar_excel" class="btn btn-success shadow-sm me-2 fw-bold">
+            <i class="bi bi-file-earmark-excel"></i> Exportar Base
+        </a>
+        <a href="/contrato/crear" class="btn btn-primary fw-bold shadow-sm">
+            <i class="bi bi-plus-circle"></i> Nuevo Contrato
+        </a>
     </div>
 </div>
 
+{% if not solo_inactivos %}
 <div class="card shadow-sm border-0 mb-4 bg-white">
     <div class="card-body d-flex justify-content-between align-items-center">
         <div>
@@ -25,11 +32,123 @@
         </div>
         <form action="/importar_csv" method="POST" enctype="multipart/form-data" class="d-flex">
             <input type="file" name="archivo" class="form-control form-control-sm me-2" accept=".csv" required>
-            <button type="submit" class="btn btn-outline-dark btn-sm px-4">Subir Data</button>
+            <button type="submit" class="btn btn-outline-dark btn-sm px-4 fw-bold">Subir Data</button>
         </form>
     </div>
 </div>
+{% endif %}
 
+{% if busqueda %}
+<div class="alert alert-info py-2 d-flex justify-content-between align-items-center shadow-sm">
+    <span><i class="bi bi-info-circle me-2"></i> Mostrando resultados para: <strong>"{{ busqueda }}"</strong></span>
+    <a href="{% if solo_inactivos %}/contratos_pasados{% else %}/{% endif %}" class="btn btn-sm btn-outline-secondary">Limpiar búsqueda</a>
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════
+     CAPA 1: KPI CARDS
+════════════════════════════════════════════════════ -->
+<div class="row g-2 mb-3">
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body py-3">
+                <div class="d-flex align-items-center">
+                    <div class="p-2 me-3 rounded-3 bg-secondary bg-opacity-10">
+                        <i class="bi bi-file-earmark-text fs-5 text-secondary"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted" style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;">Contratos</div>
+                        <div class="fw-bold fs-4 lh-1 mt-1" id="kpi_contratos">—</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body py-3">
+                <div class="d-flex align-items-center">
+                    <div class="p-2 me-3 rounded-3 bg-dark bg-opacity-10">
+                        <i class="bi bi-cash-stack fs-5 text-dark"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted" style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;">Valor Total</div>
+                        <div class="fw-semibold lh-1 mt-1" style="font-size:0.95rem;" id="kpi_valor_total">—</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body py-3">
+                <div class="d-flex align-items-center">
+                    <div class="p-2 me-3 rounded-3 bg-success bg-opacity-10">
+                        <i class="bi bi-check-circle fs-5 text-success"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted" style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;">Total Pagado</div>
+                        <div class="fw-semibold text-success lh-1 mt-1" style="font-size:0.95rem;" id="kpi_pagado">—</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body py-3">
+                <div class="d-flex align-items-center">
+                    <div class="p-2 me-3 rounded-3 bg-danger bg-opacity-10">
+                        <i class="bi bi-hourglass-split fs-5 text-danger"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted" style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;">Saldo Pendiente</div>
+                        <div class="fw-semibold text-danger lh-1 mt-1" style="font-size:0.95rem;" id="kpi_saldo">—</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     CAPA 2: PILLS DE TIPOLOGÍA (filtro rápido)
+════════════════════════════════════════════════════ -->
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3" id="pills_tipologia"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     CAPA 3: DESGLOSE COLAPSABLE POR TIPOLOGÍA
+════════════════════════════════════════════════════ -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-2"
+         style="cursor:pointer;border-bottom:0;" data-bs-toggle="collapse" data-bs-target="#desglose_body" aria-expanded="false">
+        <span class="text-secondary fw-semibold" style="font-size:0.84rem;">
+            <i class="bi bi-bar-chart-line me-2"></i>Desglose por Tipología
+        </span>
+        <i class="bi bi-chevron-down text-muted" style="font-size:0.8rem;"></i>
+    </div>
+    <div class="collapse" id="desglose_body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" style="font-size:0.82rem;">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Tipología</th>
+                        <th class="text-end">Contratos</th>
+                        <th class="text-end">Valor Total</th>
+                        <th class="text-end">Pagado</th>
+                        <th class="text-end">Saldo</th>
+                        <th class="text-end pe-3">Ejecución</th>
+                    </tr>
+                </thead>
+                <tbody id="desglose_tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     TABLA PRINCIPAL
+════════════════════════════════════════════════════ -->
 <div class="card shadow-sm border-0">
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -38,17 +157,39 @@
                     <tr>
                         <th class="ps-4">Contratista</th>
                         <th>N° Contrato</th>
+                        <th>Tipología</th>
                         <th>Valor Total</th>
                         <th>Progreso Financiero (Pagado vs Saldo)</th>
                         <th class="text-center">Acción</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="tabla_contratos_body">
                     {% for c in contratos %}
                     <tr>
-                        <td class="ps-4 fw-bold text-secondary">{{ c.contratista }}</td>
+                        <td class="ps-4 fw-bold text-secondary">
+                            {{ c.contratista }}
+                            {% if c.estado == 'INACTIVO' %}
+                                <span class="badge bg-danger ms-1" style="font-size: 0.6rem;">ARCHIVADO</span>
+                            {% endif %}
+                            {% if c.resoluciones_contratista %}
+                            <div class="mt-1">
+                                {% for res in c.resoluciones_contratista %}
+                                <span class="badge border border-secondary text-secondary bg-white me-1" style="font-size: 0.6rem; font-weight: 500;" title="Resolución">
+                                    <i class="bi bi-file-earmark-text"></i> {{ res }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </td>
                         <td><span class="badge bg-secondary">{{ c.numero_contrato }}</span></td>
-                        <td>${{ "{:,.0f}".format(c.valor_total) }}</td>
+                        <td>
+                            {% if c.tipologia and c.tipologia != 'N/A' %}
+                            <span class="badge bg-light text-dark border" style="font-size: 0.75rem;">{{ c.tipologia }}</span>
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-bold">${{ "{:,.0f}".format(c.valor_total) }}</td>
                         <td style="width: 30%;">
                             <div class="d-flex justify-content-between mb-1" style="font-size: 0.8rem;">
                                 <span>Pagado: <b class="text-success">${{ "{:,.0f}".format(c.total_pagado) }}</b></span>
@@ -64,7 +205,7 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="5" class="text-center py-5 text-muted">No hay contratos registrados. Sube tu CSV para comenzar.</td></tr>
+                    <tr><td colspan="6" class="text-center py-5 text-muted">No hay contratos para mostrar en esta vista.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -72,6 +213,7 @@
     </div>
 </div>
 
+<!-- Modal Nuevo Contrato (Quick Add) -->
 <div class="modal fade" id="modalNuevoContrato" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -82,19 +224,228 @@
       <form action="/contrato/nuevo" method="POST">
           <div class="modal-body">
               <div class="mb-3"><label class="form-label">Cédula / NIT</label><input type="text" name="identificacion" class="form-control" required></div>
-              <div class="mb-3"><label class="form-label">Nombre del Contratista</label><input type="text" name="nombre" class="form-control" required></div>
-              <div class="mb-3"><label class="form-label">N° de Contrato (Ej: 024 de 2026)</label><input type="text" name="numero_contrato" class="form-control" required></div>
+              <div class="mb-3"><label class="form-label">Nombre del Contratista</label><input type="text" name="nombre" class="form-control text-uppercase" required></div>
+              <div class="mb-3"><label class="form-label">N° de Contrato</label><input type="text" name="numero_contrato" class="form-control fw-bold" required></div>
               <div class="row">
-                  <div class="col-6 mb-3"><label class="form-label">Valor Total ($)</label><input type="number" step="0.01" name="valor_total" class="form-control" required></div>
+                  <div class="col-6 mb-3"><label class="form-label">Valor Total ($)</label><input type="number" step="1" name="valor_total" class="form-control" required></div>
                   <div class="col-6 mb-3"><label class="form-label">Fecha Inicio</label><input type="date" name="fecha_inicio" class="form-control" required></div>
               </div>
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-            <button type="submit" class="btn btn-primary">Guardar Contrato</button>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary fw-bold">Guardar Contrato</button>
           </div>
       </form>
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const searchInput  = document.querySelector('input[name="q"]');
+    const filterSelect = document.querySelector('select[name="tipo_filtro"]');
+    const tableBody    = document.getElementById('tabla_contratos_body');
+    const isInactivosView = "{{ 'true' if solo_inactivos else 'false' }}";
+
+    if (!searchInput || !tableBody || !filterSelect) return;
+    searchInput.closest('form').addEventListener('submit', e => e.preventDefault());
+
+    const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+
+    // ── Estado central ──────────────────────────────────────────────────────
+    let datosActuales  = {{ contratos | tojson }};
+    let filtroTipologia = null;
+
+    function datosFiltrados() {
+        if (!filtroTipologia) return datosActuales;
+        return datosActuales.filter(i => (i.tipologia && i.tipologia !== 'N/A' ? i.tipologia : 'Sin Tipología') === filtroTipologia);
+    }
+
+    // ── Capa 1: KPI Cards ───────────────────────────────────────────────────
+    function actualizarKPIs(datos) {
+        const totalV = datos.reduce((s, i) => s + i.valor_total, 0);
+        const totalP = datos.reduce((s, i) => s + i.total_pagado, 0);
+        const totalS = datos.reduce((s, i) => s + i.saldo, 0);
+        document.getElementById('kpi_contratos').textContent    = datos.length;
+        document.getElementById('kpi_valor_total').textContent  = fmt.format(totalV);
+        document.getElementById('kpi_pagado').textContent       = fmt.format(totalP);
+        document.getElementById('kpi_saldo').textContent        = fmt.format(totalS);
+    }
+
+    // ── Capa 2: Pills de tipología ──────────────────────────────────────────
+    function renderizarPills() {
+        const grupos = {};
+        datosActuales.forEach(i => {
+            const t = (i.tipologia && i.tipologia !== 'N/A') ? i.tipologia : 'Sin Tipología';
+            if (!grupos[t]) grupos[t] = { count: 0, valor: 0 };
+            grupos[t].count++;
+            grupos[t].valor += i.valor_total;
+        });
+
+        const container = document.getElementById('pills_tipologia');
+        const claves = Object.keys(grupos);
+        if (claves.length <= 1) { container.innerHTML = ''; return; }
+
+        const actTodos = !filtroTipologia;
+        let html = `<button class="btn btn-sm fw-bold ${actTodos ? 'btn-dark' : 'btn-outline-secondary'}" onclick="window.aplicarFiltroTipologia(null)">
+            Todos <span class="badge ms-1 ${actTodos ? 'bg-white text-dark' : 'bg-secondary'}">${datosActuales.length}</span>
+        </button>`;
+
+        Object.entries(grupos)
+            .sort((a, b) => b[1].valor - a[1].valor)
+            .forEach(([tip, info]) => {
+                const activo = filtroTipologia === tip;
+                const safeLabel = tip.replace(/'/g, "\\'");
+                html += `<button class="btn btn-sm ${activo ? 'btn-dark' : 'btn-outline-secondary'}"
+                              onclick="window.aplicarFiltroTipologia('${safeLabel}')">
+                    ${tip}
+                    <span class="badge ms-1 ${activo ? 'bg-white text-dark' : 'bg-secondary'}">${info.count}</span>
+                    <small class="ms-1 opacity-75 d-none d-md-inline">${fmt.format(info.valor)}</small>
+                </button>`;
+            });
+
+        container.innerHTML = html;
+    }
+
+    // ── Capa 3: Desglose por tipología ──────────────────────────────────────
+    function renderizarDesglose() {
+        const grupos = {};
+        datosActuales.forEach(i => {
+            const t = (i.tipologia && i.tipologia !== 'N/A') ? i.tipologia : 'Sin Tipología';
+            if (!grupos[t]) grupos[t] = { count: 0, valor: 0, pagado: 0, saldo: 0 };
+            grupos[t].count++;
+            grupos[t].valor  += i.valor_total;
+            grupos[t].pagado += i.total_pagado;
+            grupos[t].saldo  += i.saldo;
+        });
+
+        let tC = 0, tV = 0, tP = 0, tS = 0, html = '';
+        Object.entries(grupos)
+            .sort((a, b) => b[1].valor - a[1].valor)
+            .forEach(([tip, g]) => {
+                const pct = g.valor > 0 ? Math.round(g.pagado / g.valor * 100) : 0;
+                const bar = pct === 100 ? 'bg-success' : pct > 75 ? 'bg-warning' : 'bg-primary';
+                tC += g.count; tV += g.valor; tP += g.pagado; tS += g.saldo;
+                html += `<tr>
+                    <td class="ps-3">${tip}</td>
+                    <td class="text-end">${g.count}</td>
+                    <td class="text-end fw-semibold">${fmt.format(g.valor)}</td>
+                    <td class="text-end text-success">${fmt.format(g.pagado)}</td>
+                    <td class="text-end text-danger">${fmt.format(g.saldo)}</td>
+                    <td class="text-end pe-3">
+                        <div class="d-flex align-items-center justify-content-end gap-1">
+                            <div class="progress" style="width:48px;height:5px;">
+                                <div class="progress-bar ${bar}" style="width:${pct}%"></div>
+                            </div>
+                            <small class="text-muted">${pct}%</small>
+                        </div>
+                    </td>
+                </tr>`;
+            });
+
+        const pctTotal = tV > 0 ? Math.round(tP / tV * 100) : 0;
+        html += `<tr class="fw-bold table-dark" style="font-size:0.82rem;">
+            <td class="ps-3">TOTAL GENERAL</td>
+            <td class="text-end">${tC}</td>
+            <td class="text-end">${fmt.format(tV)}</td>
+            <td class="text-end">${fmt.format(tP)}</td>
+            <td class="text-end">${fmt.format(tS)}</td>
+            <td class="text-end pe-3">${pctTotal}%</td>
+        </tr>`;
+
+        document.getElementById('desglose_tbody').innerHTML = html;
+    }
+
+    // ── Tabla principal ─────────────────────────────────────────────────────
+    function construirFila(item) {
+        const badgeInactivo = item.estado === 'INACTIVO'
+            ? '<span class="badge bg-danger ms-1" style="font-size:0.6rem;">ARCHIVADO</span>' : '';
+        const resolucionesBadges = (item.resoluciones_contratista && item.resoluciones_contratista.length > 0)
+            ? `<div class="mt-1">${item.resoluciones_contratista.map(r =>
+                `<span class="badge border border-secondary text-secondary bg-white me-1"
+                       style="font-size:0.6rem;font-weight:500;" title="Resolución">
+                    <i class="bi bi-file-earmark-text"></i> ${r}</span>`).join('')}</div>` : '';
+        const tipBadge = (item.tipologia && item.tipologia !== 'N/A')
+            ? `<span class="badge bg-light text-dark border" style="font-size:0.75rem;">${item.tipologia}</span>`
+            : `<span class="text-muted small">—</span>`;
+        const barColor = item.porcentaje_pagado === 100 ? 'bg-success'
+            : item.porcentaje_pagado > 75 ? 'bg-warning' : 'bg-primary';
+
+        return `<tr>
+            <td class="ps-4 fw-bold text-secondary">${item.contratista} ${badgeInactivo}${resolucionesBadges}</td>
+            <td><span class="badge bg-secondary">${item.numero_contrato}</span></td>
+            <td>${tipBadge}</td>
+            <td class="fw-bold">${fmt.format(item.valor_total)}</td>
+            <td style="width:30%;">
+                <div class="d-flex justify-content-between mb-1" style="font-size:0.8rem;">
+                    <span>Pagado: <b class="text-success">${fmt.format(item.total_pagado)}</b></span>
+                    <span>Saldo: <b class="text-danger">${fmt.format(item.saldo)}</b></span>
+                </div>
+                <div class="progress" style="height:8px;">
+                    <div class="progress-bar ${barColor}" role="progressbar" style="width:${item.porcentaje_pagado}%;"></div>
+                </div>
+            </td>
+            <td class="text-center">
+                <a href="/contrato/${item.numero_contrato}" class="btn btn-sm btn-dark">Gestionar <i class="bi bi-arrow-right-short"></i></a>
+            </td>
+        </tr>`;
+    }
+
+    function renderizarTabla(datos) {
+        tableBody.innerHTML = datos.length
+            ? datos.map(construirFila).join('')
+            : `<tr><td colspan="6" class="text-center py-5 text-muted">
+                   <i class="bi bi-search fs-3 d-block mb-2"></i> No hay contratos para mostrar.
+               </td></tr>`;
+    }
+
+    // ── Acción: filtro de pill ───────────────────────────────────────────────
+    window.aplicarFiltroTipologia = function (tipologia) {
+        filtroTipologia = tipologia;
+        const datos = datosFiltrados();
+        actualizarKPIs(datos);
+        renderizarPills();
+        renderizarTabla(datos);
+    };
+
+    // ── Función central: actualiza todo ─────────────────────────────────────
+    function actualizarTodo() {
+        const datos = datosFiltrados();
+        actualizarKPIs(datos);
+        renderizarPills();
+        renderizarDesglose();
+        renderizarTabla(datos);
+    }
+
+    // ── AJAX search ─────────────────────────────────────────────────────────
+    let timeout = null;
+
+    function ejecutarBusquedaAjax() {
+        const query      = searchInput.value.trim();
+        const tipoFiltro = filterSelect.value;
+        if (query.length > 0 && query.length < 3) return;
+
+        tableBody.style.opacity = '0.4';
+
+        fetch(`/api/buscar_contratos?q=${encodeURIComponent(query)}&tipo_filtro=${encodeURIComponent(tipoFiltro)}&solo_inactivos=${isInactivosView}`)
+            .then(r => r.json())
+            .then(data => {
+                datosActuales   = data;
+                filtroTipologia = null;
+                actualizarTodo();
+                tableBody.style.opacity = '1';
+            })
+            .catch(err => {
+                console.error('Error búsqueda:', err);
+                tableBody.style.opacity = '1';
+            });
+    }
+
+    searchInput.addEventListener('input',  () => { clearTimeout(timeout); timeout = setTimeout(ejecutarBusquedaAjax, 300); });
+    filterSelect.addEventListener('change', () => { clearTimeout(timeout); ejecutarBusquedaAjax(); });
+
+    // ── Render inicial ───────────────────────────────────────────────────────
+    actualizarTodo();
+});
+</script>
 {% endblock %}

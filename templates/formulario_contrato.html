@@ -19,35 +19,89 @@
                 <form action="/contrato/guardar" method="POST">
 
                     <h6 class="fw-bold text-dark border-bottom pb-2 mb-3 mt-2">1. Datos del Profesional (Contratista)</h6>
-                    <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
+
+                    {% if not contrato %}
+                    <!-- BUSCADOR DE CONTRATISTA (solo en modo creación) -->
+                    <div class="mb-3" id="busqueda_contratista_wrapper" style="position:relative;">
+                        <label class="small fw-bold text-primary"><i class="bi bi-search"></i> Buscar contratista existente</label>
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white"><i class="bi bi-person-search text-primary"></i></span>
+                            <input type="text" id="input_busqueda_contratista" class="form-control border-primary"
+                                   placeholder="Escriba CC/NIT o nombre para buscar...">
+                            <button type="button" class="btn btn-outline-secondary" onclick="limpiarContratista()" title="Limpiar selección">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                        <div id="dropdown_contratistas"
+                             class="list-group shadow d-none"
+                             style="position:absolute;z-index:1050;width:100%;max-height:220px;overflow-y:auto;top:100%;left:0;">
+                        </div>
+                        <div class="form-text text-muted">Si no encuentra al contratista, complete los campos manualmente para crearlo.</div>
+                    </div>
+                    {% endif %}
+
+                    <div class="row g-3 mb-1 bg-white p-3 rounded shadow-sm">
+                        <!-- Indicador de contratista seleccionado / edición -->
+                        <div class="col-12" id="banner_contratista" style="display:none;">
+                            <div class="alert alert-dark d-flex justify-content-between align-items-center py-2 mb-0">
+                                <span><i class="bi bi-person-check-fill me-2"></i> <strong id="banner_nombre"></strong></span>
+                                <a id="link_editar_contratista" href="#" target="_blank"
+                                   class="btn btn-sm btn-outline-light">
+                                    <i class="bi bi-person-gear"></i> Editar datos del contratista
+                                </a>
+                            </div>
+                        </div>
+                        {% if contrato %}
+                        <div class="col-12">
+                            <div class="alert alert-dark d-flex justify-content-between align-items-center py-2 mb-0">
+                                <span><i class="bi bi-person-check-fill me-2"></i> <strong>{{ contrato.contratista.nombre }}</strong></span>
+                                <a href="/contratista/{{ contrato.contratista.identificacion }}/editar" target="_blank"
+                                   class="btn btn-sm btn-outline-light">
+                                    <i class="bi bi-person-gear"></i> Editar datos del contratista
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+
                         <div class="col-md-4">
                             <label class="small fw-bold text-muted">No. DE IDENTIFICACIÓN</label>
-                            <input type="text" name="identificacion" value="{{ contrato.contratista.identificacion if contrato else '' }}" class="form-control" required {% if contrato %}readonly{% endif %}>
+                            <input type="text" name="identificacion" id="campo_identificacion"
+                                   value="{{ contrato.contratista.identificacion if contrato else '' }}"
+                                   class="form-control" required {% if contrato %}readonly{% endif %}>
                         </div>
                         <div class="col-md-8">
                             <label class="small fw-bold text-muted">CONTRATISTA (Nombre Completo)</label>
-                            <input type="text" name="nombre" value="{{ contrato.contratista.nombre if contrato else '' }}" class="form-control text-uppercase" required>
+                            <input type="text" name="nombre" id="campo_nombre"
+                                   value="{{ contrato.contratista.nombre if contrato else '' }}"
+                                   class="form-control text-uppercase" required>
                         </div>
                         <div class="col-md-4">
                             <label class="small text-muted">EXPEDIDA EN</label>
-                            <input type="text" name="expedida_en" value="{{ contrato.contratista.expedida_en if contrato else '' }}" class="form-control text-uppercase">
+                            <input type="text" name="expedida_en" id="campo_expedida_en"
+                                   value="{{ contrato.contratista.expedida_en if contrato else '' }}"
+                                   class="form-control text-uppercase">
                         </div>
                         <div class="col-md-4">
                             <label class="small text-muted">No. TELÉFONO y/o CELULAR</label>
-                            <input type="text" name="telefono" value="{{ contrato.contratista.telefono if contrato else '' }}" class="form-control">
+                            <input type="text" name="telefono" id="campo_telefono"
+                                   value="{{ contrato.contratista.telefono if contrato else '' }}"
+                                   class="form-control">
                         </div>
                         <div class="col-md-4">
                             <label class="small text-muted">TIPO DE PERSONA</label>
-                            <select name="tipo_persona" class="form-select">
+                            <select name="tipo_persona" id="campo_tipo_persona" class="form-select">
                                 <option value="NATURAL" {% if contrato and contrato.contratista.tipo_persona == 'NATURAL' %}selected{% endif %}>NATURAL</option>
                                 <option value="JURIDICA" {% if contrato and contrato.contratista.tipo_persona == 'JURIDICA' %}selected{% endif %}>JURIDICA</option>
                             </select>
                         </div>
                         <div class="col-md-12">
                             <label class="small text-muted">DIRECCION</label>
-                            <input type="text" name="direccion" value="{{ contrato.contratista.direccion if contrato else '' }}" class="form-control text-uppercase">
+                            <input type="text" name="direccion" id="campo_direccion"
+                                   value="{{ contrato.contratista.direccion if contrato else '' }}"
+                                   class="form-control text-uppercase">
                         </div>
                     </div>
+                    <div class="mb-4"></div>
 
                     <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">2. Identificación del Contrato</h6>
                     <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
@@ -58,18 +112,12 @@
                         <div class="col-md-4">
                             <label class="small text-muted">PERFIL</label>
                             <select name="perfil" class="form-select text-uppercase" required>
-                                <option value="TRANSPORTE_188" {% if contrato and contrato.perfil == 'TRANSPORTE_188' %}selected{% endif %}>TRANSPORTE_188</option>
-                                <option value="SINDICATO_106" {% if contrato and contrato.perfil == 'SINDICATO_106' %}selected{% endif %}>SINDICATO_106</option>
-                                <option value="SINDICATO_103" {% if contrato and contrato.perfil == 'SINDICATO_103' %}selected{% endif %}>SINDICATO_103</option>
-                                <option value="UNIVERSIDAD_DE_ANTIOQUIA_021" {% if contrato and contrato.perfil == 'UNIVERSIDAD_DE_ANTIOQUIA_021' %}selected{% endif %}>UNIVERSIDAD_DE_ANTIOQUIA_021</option>
-                                <option value="UNIVERSIDAD_DE_ANTIOQUIA_020" {% if contrato and contrato.perfil == 'UNIVERSIDAD_DE_ANTIOQUIA_020' %}selected{% endif %}>UNIVERSIDAD_DE_ANTIOQUIA_020</option>
-                                <option value="MEDICINA" {% if contrato and contrato.perfil == 'MEDICINA' %}selected{% endif %}>MEDICINA</option>
-                                <option value="ENFERMERIA" {% if contrato and contrato.perfil == 'ENFERMERIA' %}selected{% endif %}>ENFERMERIA</option>
-                                <option value="PSICOLOGIA" {% if contrato and contrato.perfil == 'PSICOLOGIA' %}selected{% endif %}>PSICOLOGIA</option>
-                                <option value="SALUD ORAL" {% if contrato and contrato.perfil == 'SALUD ORAL' %}selected{% endif %}>SALUD ORAL</option>
-                                <option value="AUXILIAR ENFERMERIA" {% if contrato and contrato.perfil == 'AUXILIAR ENFERMERIA' %}selected{% endif %}>AUXILIAR ENFERMERIA</option>
-                                <option value="AUXILIAR VACUNACION" {% if contrato and contrato.perfil == 'AUXILIAR VACUNACION' %}selected{% endif %}>AUXILIAR VACUNACION</option>
-                                <option value="GESTOR COMUNITARIO" {% if contrato and contrato.perfil == 'GESTOR COMUNITARIO' %}selected{% endif %}>GESTOR COMUNITARIO</option>
+                                <option value="">Seleccione un perfil configurado...</option>
+                                {% for p in perfiles %}
+                                <option value="{{ p.nombre }}" {% if contrato and contrato.perfil== p.nombre %}selected{% endif %}>
+                                    {{ p.nombre }}
+                                </option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-4">
@@ -103,6 +151,18 @@
                             <label class="small text-muted">ZONA</label>
                             <input type="text" name="zona" value="{{ contrato.zona if contrato else '' }}" class="form-control text-uppercase">
                         </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">RESOLUCIÓN</label>
+                            <input type="text" name="resolucion" class="form-control text-uppercase"
+                                   placeholder="Ej: RES-045-2026" value="{{ contrato.resolucion if contrato else '' }}">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="small text-muted">TIPOLOGÍA</label>
+                            <input type="text" name="tipologia" class="form-control text-uppercase"
+                                   placeholder="Ej: Prestación de Servicios"
+                                   value="{{ contrato.tipologia if contrato else '' }}">
+                        </div>
                     </div>
 
                     <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">3. Fechas y Valores Financieros</h6>
@@ -118,10 +178,6 @@
                         <div class="col-md-3">
                             <label class="small text-muted">TIEMPO DE ADICION</label>
                             <input type="text" name="tiempo_adicion" value="{{ contrato.tiempo_adicion if contrato else 'N/A' }}" class="form-control text-uppercase">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="small text-muted">FORMA DE PAGO</label>
-                            <input type="text" name="forma_pago" value="{{ contrato.forma_pago if contrato else '' }}" class="form-control text-uppercase">
                         </div>
 
                         <div class="col-md-6">
@@ -188,6 +244,85 @@
     </div>
 </div>
     <script>
+    // ── Buscador de contratistas ──────────────────────────────────────────────
+    (function () {
+        const inputBusqueda = document.getElementById('input_busqueda_contratista');
+        if (!inputBusqueda) return; // modo edición: no hay buscador
+
+        const dropdown   = document.getElementById('dropdown_contratistas');
+        const banner     = document.getElementById('banner_contratista');
+        const bannerNombre = document.getElementById('banner_nombre');
+        const linkEditar = document.getElementById('link_editar_contratista');
+
+        let timeout = null;
+
+        inputBusqueda.addEventListener('input', function () {
+            clearTimeout(timeout);
+            const q = this.value.trim();
+            if (q.length < 2) { dropdown.classList.add('d-none'); return; }
+            timeout = setTimeout(() => buscarContratistas(q), 280);
+        });
+
+        // Cerrar dropdown al hacer click fuera
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('#busqueda_contratista_wrapper')) {
+                dropdown.classList.add('d-none');
+            }
+        });
+
+        function buscarContratistas(q) {
+            fetch(`/api/contratistas?q=${encodeURIComponent(q)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        dropdown.innerHTML = `<div class="list-group-item text-muted small py-2">
+                            <i class="bi bi-info-circle me-1"></i> No encontrado — complete los campos manualmente para crear nuevo contratista.
+                        </div>`;
+                    } else {
+                        dropdown.innerHTML = data.map(c => `
+                            <button type="button" class="list-group-item list-group-item-action py-2"
+                                    onclick='seleccionarContratista(${JSON.stringify(c)})'>
+                                <div class="fw-bold">${c.nombre}</div>
+                                <small class="text-muted">${c.identificacion}
+                                    ${c.telefono ? ' · ' + c.telefono : ''}
+                                </small>
+                            </button>`).join('');
+                    }
+                    dropdown.classList.remove('d-none');
+                });
+        }
+
+        window.seleccionarContratista = function (c) {
+            document.getElementById('campo_identificacion').value = c.identificacion;
+            document.getElementById('campo_nombre').value         = c.nombre;
+            document.getElementById('campo_expedida_en').value    = c.expedida_en;
+            document.getElementById('campo_telefono').value       = c.telefono;
+            document.getElementById('campo_direccion').value      = c.direccion;
+            document.getElementById('campo_tipo_persona').value   = c.tipo_persona || 'NATURAL';
+
+            inputBusqueda.value = `${c.nombre}  (${c.identificacion})`;
+            dropdown.classList.add('d-none');
+
+            bannerNombre.textContent = c.nombre;
+            linkEditar.href = `/contratista/${c.identificacion}/editar`;
+            banner.style.display = '';
+        };
+
+        window.limpiarContratista = function () {
+            ['campo_identificacion','campo_nombre','campo_expedida_en',
+             'campo_telefono','campo_direccion'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            const tp = document.getElementById('campo_tipo_persona');
+            if (tp) tp.value = 'NATURAL';
+            inputBusqueda.value = '';
+            dropdown.classList.add('d-none');
+            banner.style.display = 'none';
+        };
+    })();
+
+    // ── Plantilla forma de pago ───────────────────────────────────────────────
     const textoPagoEstandar = `La Empresa Social del Estado Norte 3, pagará al CONTRATISTA el valor total del contrato en tres (3) cuotas mensuales vencidas, conforme al cumplimiento de las metas establecidas, los procesos contratados y debidamente facturados. El pago estará sujeto al trámite administrativo correspondiente y, se efectuará previa presentación de factura electrónica que cumpla con los requisitos legales exigidos por la dirección de impuestos y aduanas nacionales (DIAN), certificación del pago de aportes al Sistema General de Seguridad Social en Integral (salud, pensiones y riesgos laborales), conforme a lo dispuesto en la ley 100 de 1993 y demás normas complementarias, soporte de pago de aportes parafiscales a SENA, ICBF y CCF, cuando corresponda, en cumplimiento del artículo 50 de la ley 789 de 2002, informe detallado de actividades realizadas suscrito por el contratista, informe de supervisión suscrito por el supervisor del contrato, en el cual se certifique el cumplimiento de las obligaciones contractuales, constancia de recibo a satisfacción firmada por la persona encargada de la vigilancia del contrato y/o el supervisor designado. A la orden de pago, se le aplicarán los descuentos de ley y el valor neto obtenido se cancelará una vez cumplidos los trámites administrativos establecidos por la Empresa Social del Estado Norte 3. no obstante, la entidad se reserva el derecho de descontar del valor facturado, cualquier monto correspondiente a actividades que no cuenten con el debido soporte de prestación efectiva del servicio o que no hayan sido debidamente autorizadas. El supervisor del contrato será el responsable de verificar el cumplimiento de estas obligaciones, de conformidad con lo dispuesto en el artículo 83 de la ley 1474 de 2011.`;
 
     function cargarPlantillaPago() {

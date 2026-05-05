@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="text-secondary"><i class="bi bi-diagram-3"></i> Configuración de Perfiles</h2>
+        <p class="text-muted">Administre los perfiles contractuales y sus obligaciones legales que se imprimirán en los PDFs.</p>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Formulario Creación -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 border-top border-primary border-3 mb-4">
+            <div class="card-header bg-white"><h6 class="mb-0 fw-bold">Nuevo Perfil</h6></div>
+            <div class="card-body">
+                <form action="/perfiles/crear" method="POST">
+                    <div class="mb-3">
+                        <label class="small fw-bold text-muted">Nombre Exacto del Perfil</label>
+                        <input type="text" name="nombre" class="form-control text-uppercase" placeholder="Ej: TRANSPORTE_188" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="small fw-bold text-muted">Honorario de Referencia ($)</label>
+                        <input type="number" step="1" name="honorario_referencia" class="form-control" value="0" required>
+                        <small class="text-muted" style="font-size: 0.75rem;">Deje 0 si no requiere validación de descuento.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="small text-muted">Descripción (Uso interno)</label>
+                        <textarea name="descripcion" class="form-control" rows="2"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 fw-bold"><i class="bi bi-plus-circle"></i> Crear Perfil</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Perfiles -->
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Nombre del Perfil</th>
+                            <th>Descripción</th>
+                            <th class="text-center">Actividades</th>
+                            <th class="text-center">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in perfiles %}
+                        <tr>
+                            <td class="ps-4 fw-bold text-dark">{{ p.nombre }}</td>
+                            <td class="text-muted small">{{ p.descripcion }}</td>
+                            <td class="text-center"><span class="badge bg-secondary">{{ p.actividades|length }}</span></td>
+                            <td class="text-center">
+                                <a href="/perfiles/{{ p.id }}" class="btn btn-sm btn-dark">
+                                    <i class="bi bi-gear"></i> Parametrizar
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
