@@ -484,7 +484,7 @@ class GestorTransacciones:
             contrato.imputacion = form_data.get('imputacion', contrato.imputacion)
             contrato.codigo_ciiu = form_data.get('codigo_ciiu', contrato.codigo_ciiu)
             contrato.forma_pago = form_data.get('forma_pago', contrato.forma_pago)
-            contrato.objeto = form_data.get('objeto_contrato', contrato.objeto)
+            contrato.objeto = form_data.get('objeto', contrato.objeto)
 
             # Fechas y tiempos
             contrato.fecha_inicio = form_data.get('fecha_inicio', contrato.fecha_inicio)
