@@ -272,13 +272,26 @@ class GestorTransacciones:
         return df
 
     def importar_datos_csv(self, contenido_csv: str):
-        """ Procesa el archivo CSV e inserta/actualiza TODAS las columnas modularmente """
-        reader = csv.DictReader(io.StringIO(contenido_csv))
-        registros = 0
+        """ Procesa el CSV ordenando cronológicamente y autoasignando el número de pago SOLO si falta en el origen. """
+        try:
+            df = pd.read_csv(io.StringIO(contenido_csv))
+        except Exception as e:
+            return False, f"Error al leer el archivo CSV: {str(e)}"
 
+        # Limpiamos las cabeceras (BOM y espacios invisibles de Excel)
+        df.columns = df.columns.str.replace('\ufeff', '').str.strip()
+
+        # Validamos que las columnas mínimas existan
+        if 'N° DE CONTRATO' not in df.columns or 'No. DE IDENTIFICACIÓN' not in df.columns:
+            return False, "Faltan columnas clave en el archivo (N° DE CONTRATO, No. DE IDENTIFICACIÓN)."
+
+        # Descartamos filas totalmente vacías en el identificador de contrato
+        df = df.dropna(subset=['N° DE CONTRATO', 'No. DE IDENTIFICACIÓN'])
+
+        # 2. FUNCIÓN INTERNA DE PARSEO MONETARIO SEGURO
         def parse_float(val):
             try:
-                if not val or str(val).strip() in ['', 'N/A', 'NA', '-']:
+                if pd.isna(val) or not val or str(val).strip() in ['', 'N/A', 'NA', '-']:
                     return 0.0
                 s = str(val).replace('$', '').replace(' ', '').strip()
                 if '.' in s and ',' in s:
@@ -288,23 +301,63 @@ class GestorTransacciones:
                 elif ',' in s:
                     s = s.replace(',', '.')
                 return float(s)
-            except Exception as e:
+            except Exception:
                 return 0.0
 
-        for row_cruda in reader:
+        # 3. PREPARACIÓN DE FECHAS PARA ORDENAMIENTO CRONOLÓGICO
+        if 'PERIODO INFORME DESDE' in df.columns:
+            df['_fecha_desde'] = pd.to_datetime(df['PERIODO INFORME DESDE'], errors='coerce', dayfirst=True).fillna(
+                pd.Timestamp.min)
+        else:
+            df['_fecha_desde'] = pd.Timestamp.min
+
+        if 'PERIODO INFORME HASTA' in df.columns:
+            df['_fecha_hasta'] = pd.to_datetime(df['PERIODO INFORME HASTA'], errors='coerce', dayfirst=True).fillna(
+                pd.Timestamp.min)
+        else:
+            df['_fecha_hasta'] = pd.Timestamp.min
+
+        # 4. LIMPIEZA DEL VALOR A PAGAR PARA DESEMPATE
+        if 'VALOR A PAGAR' in df.columns:
+            df['_valor_a_pagar'] = df['VALOR A PAGAR'].apply(parse_float)
+        else:
+            df['_valor_a_pagar'] = 0.0
+
+        # 5. ORDENAMIENTO (ESTRATEGIA DE DESEMPATE CRONOLÓGICO)
+        df = df.sort_values(
+            by=['N° DE CONTRATO', '_fecha_desde', '_fecha_hasta', '_valor_a_pagar'],
+            ascending=[True, True, True, False]
+        )
+
+        # 6. ASIGNACIÓN INTELIGENTE DEL CONSECUTIVO DEL PAGO
+        # Extraemos el valor original del Excel (si existe) convirtiéndolo a número
+        if 'PAGO No' in df.columns:
+            df['_pago_no_original'] = pd.to_numeric(df['PAGO No'], errors='coerce')
+        else:
+            df['_pago_no_original'] = pd.NA
+
+        # Calculamos la secuencia base cronológica (1, 2, 3...) por si hay vacíos
+        df['_pago_no_calc'] = df.groupby('N° DE CONTRATO').cumcount() + 1
+
+        # Aplicamos la regla estricta: Respetar el original. Si no existe, usar el calculado.
+        def resolver_consecutivo(row):
+            orig = row.get('_pago_no_original')
+            if pd.notna(orig) and orig > 0:
+                return int(orig)
+            return int(row['_pago_no_calc'])
+
+        df['_pago_final'] = df.apply(resolver_consecutivo, axis=1)
+
+        registros = 0
+
+        # 7. INSERCIÓN EN BASE DE DATOS
+        for _, row_cruda in df.iterrows():
             try:
-                # --- MAGIA SENIOR: Limpiar espacios invisibles y caracteres BOM de Excel ---
-                row = {str(k).replace('\ufeff', '').strip(): v for k, v in row_cruda.items() if k is not None}
-                # -------------------------------------------------------------------------------
+                # Convertimos la fila de Pandas a diccionario limpio (omitiendo nulos de pandas)
+                row = {str(k).strip(): v for k, v in row_cruda.to_dict().items() if pd.notna(v)}
 
                 identificacion = str(row.get('No. DE IDENTIFICACIÓN', '')).strip()
                 numero_contrato = str(row.get('N° DE CONTRATO', '')).strip()
-
-                if not identificacion or not numero_contrato:
-                    continue
-
-                from models.db_models import DBContratista, DBContrato, \
-                    DBPago  # Importaciones seguras si el archivo lo requiere
 
                 # --- 1. UPSERT CONTRATISTA ---
                 contratista = self.db.query(DBContratista).filter(
@@ -315,7 +368,8 @@ class GestorTransacciones:
 
                 if row.get('NOMBRE CONTRATISTA'): contratista.nombre = row.get('NOMBRE CONTRATISTA', '')
                 if row.get('EXPEDIDA EN'): contratista.expedida_en = row.get('EXPEDIDA EN', '')
-                if row.get('No. TELÉFONO y/o CELULAR'): contratista.telefono = row.get('No. TELÉFONO y/o CELULAR', '')
+                if row.get('No. TELÉFONO y/o CELULAR'): contratista.telefono = str(
+                    row.get('No. TELÉFONO y/o CELULAR', ''))
                 if row.get('DIRECCION'): contratista.direccion = row.get('DIRECCION', '')
                 if row.get('TIPO DE PERSONA'): contratista.tipo_persona = row.get('TIPO DE PERSONA', '')
 
@@ -333,16 +387,16 @@ class GestorTransacciones:
                     'FECHA DE INICIO DEL CONTRATO', '')
                 if row.get('FECHA TERMINACION DEL CONTRATO'): contrato.fecha_terminacion = row.get(
                     'FECHA TERMINACION DEL CONTRATO', '')
-                if row.get('CÓDIGO CIIU'): contrato.codigo_ciiu = row.get('CÓDIGO CIIU', '')
+                if row.get('CÓDIGO CIIU'): contrato.codigo_ciiu = str(row.get('CÓDIGO CIIU', ''))
                 if row.get('SUPERVISOR'): contrato.supervisor = row.get('SUPERVISOR', '')
                 if row.get('NIVEL PROFESIONAL SUPERVISOR'): contrato.nivel_prof_supervisor = row.get(
                     'NIVEL PROFESIONAL SUPERVISOR', '')
                 if row.get('INTERVENTOR'): contrato.interventor = row.get('INTERVENTOR', '')
                 if row.get('NIVEL PROFESIONAL INTERVENTOR'): contrato.nivel_prof_interventor = row.get(
                     'NIVEL PROFESIONAL INTERVENTOR', '')
-                if row.get('CDP  No.'): contrato.cdp = row.get('CDP  No.', '')
-                if row.get('CRP No.'): contrato.crp = row.get('CRP No.', '')
-                if row.get('IMPUTACIÓN PRESUPUESTAL'): contrato.imputacion = row.get('IMPUTACIÓN PRESUPUESTAL', '')
+                if row.get('CDP  No.'): contrato.cdp = str(row.get('CDP  No.', ''))
+                if row.get('CRP No.'): contrato.crp = str(row.get('CRP No.', ''))
+                if row.get('IMPUTACIÓN PRESUPUESTAL'): contrato.imputacion = str(row.get('IMPUTACIÓN PRESUPUESTAL', ''))
                 if row.get('TIEMPO DE ADICION DE CONTRATO'): contrato.tiempo_adicion = row.get(
                     'TIEMPO DE ADICION DE CONTRATO', '')
                 if row.get('VALOR FINAL DEL CONTRATO'): contrato.valor_final = parse_float(
@@ -353,15 +407,11 @@ class GestorTransacciones:
                 if row.get('PERFIL'): contrato.perfil = row.get('PERFIL', '')
                 if row.get('MUNICIPIO'): contrato.municipio = row.get('MUNICIPIO', '')
                 if row.get('ZONA'): contrato.zona = row.get('ZONA', '')
-
-                # --- NUEVOS CAMPOS ---
-                # Asume que las columnas en Excel se llamarán "RESOLUCION" y "TIPOLOGIA"
                 if row.get('RESOLUCION'): contrato.resolucion = row.get('RESOLUCION', '')
                 if row.get('TIPOLOGIA'): contrato.tipologia = row.get('TIPOLOGIA', '')
 
-                # --- 3. UPSERT PAGO ---
-                pago_no_str = str(row.get('PAGO No', '1')).strip()
-                pago_no = int(parse_float(pago_no_str)) if pago_no_str else 1
+                # --- 3. UPSERT PAGO (Asignación Híbrida: Excel o Calculado) ---
+                pago_no = int(row['_pago_final'])
 
                 pago = self.db.query(DBPago).filter(DBPago.contrato_id == numero_contrato,
                                                     DBPago.numero_pago == pago_no).first()
@@ -372,7 +422,7 @@ class GestorTransacciones:
                 if row.get('TIPO DE INFORME'): pago.tipo_informe = row.get('TIPO DE INFORME', '')
                 if row.get('PERIODO INFORME DESDE'): pago.periodo_desde = row.get('PERIODO INFORME DESDE', '')
                 if row.get('PERIODO INFORME HASTA'): pago.periodo_hasta = row.get('PERIODO INFORME HASTA', '')
-                if row.get('Cuentas de cobro'): pago.cuentas_cobro = row.get('Cuentas de cobro', '')
+                if row.get('Cuentas de cobro'): pago.cuentas_cobro = str(row.get('Cuentas de cobro', ''))
                 if row.get('VALOR A PAGAR'): pago.valor_a_pagar = parse_float(row.get('VALOR A PAGAR', 0))
                 if row.get('OTRO SI'): pago.otro_si = row.get('OTRO SI', '')
                 if row.get('VALOR PAGADO'): pago.valor_pagado = parse_float(row.get('VALOR PAGADO', 0))
@@ -403,10 +453,10 @@ class GestorTransacciones:
                 registros += 1
             except Exception as e:
                 self.db.rollback()
-                print(f"Error procesando fila: {e}")
+                print(f"Error procesando fila {numero_contrato}: {e}")
                 continue
 
-        return True, f"Importación exitosa. {registros} registros procesados y/o actualizados."
+        return True, f"Importación Inteligente Exitosa. {registros} pagos procesados."
 
     def obtener_pago_por_id(self, pago_id: int):
         return self.db.query(DBPago).filter(DBPago.id == pago_id).first()
