@@ -674,3 +674,54 @@ class GestorTransacciones:
         except Exception as e:
             self.db.rollback()
             return False, str(e)
+
+    def obtener_plantillas_observaciones(self):
+        from models.db_models import DBPlantillaObservacion
+        return self.db.query(DBPlantillaObservacion).order_by(DBPlantillaObservacion.titulo).all()
+
+    def obtener_plantilla_observacion_por_id(self, plantilla_id: int):
+        from models.db_models import DBPlantillaObservacion
+        return self.db.query(DBPlantillaObservacion).filter(DBPlantillaObservacion.id == plantilla_id).first()
+
+    def crear_plantilla_observacion(self, titulo: str, contenido: str):
+        try:
+            from models.db_models import DBPlantillaObservacion
+            nueva = DBPlantillaObservacion(
+                titulo=titulo.strip().upper(),
+                contenido=contenido.strip()
+            )
+            self.db.add(nueva)
+            self.db.commit()
+            return True, "Plantilla de observación creada exitosamente."
+        except Exception as e:
+            self.db.rollback()
+            return False, f"Error al crear (¿El título ya existe?): {str(e)}"
+
+    def actualizar_plantilla_observacion(self, plantilla_id: int, titulo: str, contenido: str):
+        try:
+            from models.db_models import DBPlantillaObservacion
+            plantilla = self.db.query(DBPlantillaObservacion).filter(DBPlantillaObservacion.id == plantilla_id).first()
+            if not plantilla:
+                return False, "Plantilla no encontrada."
+
+            plantilla.titulo = titulo.strip().upper()
+            plantilla.contenido = contenido.strip()
+            self.db.commit()
+            return True, "Plantilla actualizada correctamente."
+        except Exception as e:
+            self.db.rollback()
+            return False, str(e)
+
+    def eliminar_plantilla_observacion(self, plantilla_id: int):
+        try:
+            from models.db_models import DBPlantillaObservacion
+            plantilla = self.db.query(DBPlantillaObservacion).filter(DBPlantillaObservacion.id == plantilla_id).first()
+            if not plantilla:
+                return False, "Plantilla no encontrada."
+
+            self.db.delete(plantilla)
+            self.db.commit()
+            return True, "Plantilla eliminada definitivamente."
+        except Exception as e:
+            self.db.rollback()
+            return False, str(e)

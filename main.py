@@ -472,12 +472,12 @@ async def registrar_pago_completo(
             }
 
             # Encolamos la tarea para que el usuario no tenga que esperar el response de la API externa
+            print(payload_masivo)
             background_tasks.add_task(enviar_webhook_pago, payload_masivo)
 
     # 6. Redirección al usuario (Cierre de ciclo)
     contrato_encode = urllib.parse.quote(form_limpio.get('contrato_id', ''), safe='')
     estado = "mensaje" if exito else "error"
-
     return RedirectResponse(url=f"/contrato/{contrato_encode}?{estado}={msg}", status_code=303)
 
 
@@ -766,6 +766,43 @@ async def cambiar_estado_endpoint(numero_contrato: str, estado: str = Form(...),
     contrato_encode = urllib.parse.quote(numero_contrato, safe='')
 
     return RedirectResponse(url=f"/contrato/{contrato_encode}?{estado_url}={msg}", status_code=303)
+
+@app.get("/plantillas_observaciones", response_class=HTMLResponse)
+async def vista_plantillas(request: Request, db: Session = Depends(get_db), current_user: DBUsuario = Depends(obtener_usuario_actual)):
+    tx = GestorTransacciones(db)
+    plantillas = tx.obtener_plantillas_observaciones()
+    return templates.TemplateResponse(
+        request=request, name="gestion_plantillas.html",
+        context={"request": request, "plantillas": plantillas, "usuario_actual": current_user, "mensaje": request.query_params.get("mensaje"), "error": request.query_params.get("error")}
+    )
+
+@app.post("/plantillas_observaciones/crear")
+async def crear_plantilla(titulo: str = Form(...), contenido: str = Form(...), db: Session = Depends(get_db), current_user: DBUsuario = Depends(obtener_usuario_actual)):
+    tx = GestorTransacciones(db)
+    exito, msg = tx.crear_plantilla_observacion(titulo, contenido)
+    estado = "mensaje" if exito else "error"
+    return RedirectResponse(url=f"/plantillas_observaciones?{estado}={msg}", status_code=303)
+
+@app.post("/plantillas_observaciones/{plantilla_id}/editar")
+async def editar_plantilla(plantilla_id: int, titulo: str = Form(...), contenido: str = Form(...), db: Session = Depends(get_db), current_user: DBUsuario = Depends(obtener_usuario_actual)):
+    tx = GestorTransacciones(db)
+    exito, msg = tx.actualizar_plantilla_observacion(plantilla_id, titulo, contenido)
+    estado = "mensaje" if exito else "error"
+    return RedirectResponse(url=f"/plantillas_observaciones?{estado}={msg}", status_code=303)
+
+@app.post("/plantillas_observaciones/{plantilla_id}/eliminar")
+async def eliminar_plantilla(plantilla_id: int, db: Session = Depends(get_db), current_user: DBUsuario = Depends(obtener_usuario_actual)):
+    tx = GestorTransacciones(db)
+    exito, msg = tx.eliminar_plantilla_observacion(plantilla_id)
+    estado = "mensaje" if exito else "error"
+    return RedirectResponse(url=f"/plantillas_observaciones?{estado}={msg}", status_code=303)
+
+@app.get("/api/plantillas_observaciones")
+async def api_obtener_plantillas(db: Session = Depends(get_db)):
+    """Endpoint que consume el frontend (AJAX) para inyectar el desplegable de observaciones."""
+    tx = GestorTransacciones(db)
+    plantillas = tx.obtener_plantillas_observaciones()
+    return JSONResponse(content=[{"id": p.id, "titulo": p.titulo, "contenido": p.contenido} for p in plantillas])
 
 # Adaptador AWS
 handler = Mangum(app)

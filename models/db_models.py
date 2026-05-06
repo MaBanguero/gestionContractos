@@ -115,3 +115,12 @@ class DBActividadPerfil(Base):
     orden = Column(Integer, default=0) # Garantiza que el PDF imprima las obligaciones en el orden legal correcto
 
     perfil = relationship("DBPerfil", back_populates="actividades")
+
+
+class DBPlantillaObservacion(Base):
+    __tablename__ = "plantillas_observaciones"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    titulo = Column(String, unique=True, index=True, nullable=False)
+    contenido = Column(Text, nullable=False)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)

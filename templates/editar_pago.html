@@ -206,10 +206,17 @@
                             <label class="small text-muted fw-bold">Actividades Ejecutadas</label>
                             <textarea name="actividades" class="form-control form-control-sm" rows="3">{{ pago.actividades or '' }}</textarea>
                         </div>
-                        <div class="mb-3">
-                            <label class="small text-muted fw-bold">Observaciones Generales</label>
-                            <textarea name="observaciones" class="form-control form-control-sm border-warning" rows="3">{{ pago.observaciones or '' }}</textarea>
+
+                        <!-- NUEVO BLOQUE: SELECTOR DINÁMICO DE OBSERVACIONES -->
+                        <div class="mb-3 p-2 border rounded bg-light">
+                            <label class="small fw-bold text-primary mb-1"><i class="bi bi-file-text"></i> Plantilla de Observaciones</label>
+                            <select id="selector_plantilla_obs" class="form-select form-select-sm border-primary mb-2" onchange="cargarPlantilla()">
+                                <option value="">-- Conservar texto actual (O Escribir manualmente) --</option>
+                            </select>
+                            <label class="small text-muted fw-bold">Texto de la Observación (Editable)</label>
+                            <textarea name="observaciones" id="observaciones_textarea" class="form-control form-control-sm border-warning" rows="6">{{ pago.observaciones or '' }}</textarea>
                         </div>
+
                         <div class="row g-2">
                             <div class="col-6">
                                 <label class="small text-muted fw-bold">Act.</label>
@@ -236,6 +243,40 @@
 </div>
 
 <script>
+    // --- LÓGICA DINÁMICA DE PLANTILLAS DE OBSERVACIONES (AJAX) ---
+    let plantillasGlobales = [];
+
+    function cargarPlantillasDesdeBD() {
+        fetch('/api/plantillas_observaciones')
+            .then(response => response.json())
+            .then(data => {
+                plantillasGlobales = data;
+                const selector = document.getElementById('selector_plantilla_obs');
+
+                data.forEach(p => {
+                    selector.insertAdjacentHTML('beforeend', `<option value="${p.id}">${p.titulo}</option>`);
+                });
+            })
+            .catch(err => console.error("Error cargando plantillas:", err));
+    }
+
+    function cargarPlantilla() {
+        const selectorId = document.getElementById('selector_plantilla_obs').value;
+        const textarea = document.getElementById('observaciones_textarea');
+
+        if (!selectorId) {
+            // Si el usuario regresa al valor por defecto, no borramos el texto porque podría estar editando a mano
+            return;
+        }
+
+        // Busca el contenido cruzando el ID
+        const plantillaSeleccionada = plantillasGlobales.find(p => p.id == selectorId);
+        if (plantillaSeleccionada) {
+            textarea.value = plantillaSeleccionada.contenido;
+        }
+    }
+
+    // --- LÓGICA DE VALORES Y SELECTORES EXISTENTE ---
     function toggleOtro(tipo) {
         let select = document.getElementById(tipo + '_select');
         let input = document.getElementById(tipo + '_otro');
@@ -252,6 +293,9 @@
     }
 
     document.addEventListener("DOMContentLoaded", function() {
+        // Ejecutamos la carga del catálogo de observaciones
+        cargarPlantillasDesdeBD();
+
         // Auto-selección del Tipo de Informe
         document.getElementById('tipo_informe_select').value = '{{ pago.tipo_informe }}';
 

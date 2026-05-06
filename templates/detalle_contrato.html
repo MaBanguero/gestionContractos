@@ -272,19 +272,42 @@
         document.getElementById('total_planilla').value = eps + arl + afp + sena + icbf;
     }
 
-    const plantillaSinDescuento = `Una vez verificado el informe de actividades, los soportes allegados y demás evidencias presentadas por el CONTRATISTA, se constata el cumplimiento de las obligaciones contractuales correspondientes al periodo evaluado, conforme a lo establecido en el contrato. En consecuencia, desde la supervisión se conceptúa favorablemente el cumplimiento de las actividades desarrolladas y se autoriza el trámite de pago de la cuenta de cobro presentada, por encontrarse debidamente soportada. No obstante, se recomienda al CONTRATISTA mantener vigente su afiliación a las administradoras del Sistema General de Seguridad Social Integral, así como continuar efectuando de manera oportuna los aportes correspondientes, en cumplimiento de la normativa vigente aplicable y de las obligaciones contractuales asumidas, mínimo, mientras se encuentre vigente el contrato.`;
-    const plantillaConDescuento = `Verificado lo informes de actividades, los soportes allegados y demás evidencias presentadas por el CONTRATISTA, se evidencia un cumplimiento parcial de las obligaciones contractuales correspondientes al periodo evaluado, conforme a lo establecido en el contrato y en el plan de actividades aprobado. Se deja constancia de que no se ejecutó la totalidad de las actividades previstas, situación que se encuentra debidamente soportada en la verificación realizada por la supervisión. En consecuencia, y en aplicación del principio de pago contra prestación efectivamente ejecutada, así como de lo pactado en el contrato, la supervisión determina el reconocimiento y pago únicamente de las actividades efectivamente desarrolladas y soportadas, procediendo al ajuste del valor de la cuenta de cobro en proporción a dicho cumplimiento. Por lo anterior, se autoriza el trámite de pago por el valor ajustado, conforme a la verificación efectuada. Finalmente, se recomienda al CONTRATISTA mantener vigente su afiliación al Sistema General de Seguridad Social Integral y efectuar oportunamente los aportes correspondientes, en cumplimiento de la normativa vigente y de las obligaciones contractuales asumidas.`;
-    const plantillaRecuperacionDescuento = `Verificado el informe de actividades, los soportes allegados y demás evidencias presentadas por el CONTRATISTA, se evidencia que durante el periodo evaluado se ejecutaron actividades adicionales y/o se subsanaron aquellas que dieron lugar a la aplicación de un descuento en periodos anteriores, dentro del mismo término de ejecución contractual. En ese sentido, la supervisión constata que las actividades previamente no reconocidas fueron efectivamente desarrolladas y debidamente soportadas, cumpliendo con las condiciones técnicas y contractuales exigidas. En consecuencia, y en aplicación del principio de reconocimiento de la prestación efectivamente ejecutada, se autoriza la recuperación del valor descontado, en proporción a las actividades verificadas, procediendo su inclusión en el trámite de pago correspondiente al presente periodo. Lo anterior se realiza sin que ello implique modificación de las condiciones contractuales, sino en garantía del equilibrio contractual y del pago justo por las actividades efectivamente ejecutadas y acreditadas.`;
+    document.addEventListener("DOMContentLoaded", function() {
+        cargarPlantillasDesdeBD();
+    });
+
+    function cargarPlantillasDesdeBD() {
+        fetch('/api/plantillas_observaciones')
+            .then(response => response.json())
+            .then(data => {
+                plantillasGlobales = data;
+                const selector = document.getElementById('selector_plantilla_obs');
+
+                // Limpiamos y repoblamos el selector
+                selector.innerHTML = '<option value="">-- Escribir manualmente --</option>';
+                data.forEach(p => {
+                    selector.insertAdjacentHTML('beforeend', `<option value="${p.id}">${p.titulo}</option>`);
+                });
+            })
+            .catch(err => console.error("Error cargando plantillas:", err));
+    }
 
     function cargarPlantilla() {
-        const selector = document.getElementById('selector_plantilla_obs').value;
+        const selectorId = document.getElementById('selector_plantilla_obs').value;
         const textarea = document.getElementById('observaciones_textarea');
 
-        if (selector === 'sin_descuento') textarea.value = plantillaSinDescuento;
-        else if (selector === 'con_descuento') textarea.value = plantillaConDescuento;
-        else if (selector === 'recuperacion_de_descuento') textarea.value = plantillaRecuperacionDescuento;
-        else textarea.value = '';
+        if (!selectorId) {
+            textarea.value = ''; // Permite escritura manual libre
+            return;
+        }
+
+        // Busca el contenido cruzando el ID
+        const plantillaSeleccionada = plantillasGlobales.find(p => p.id == selectorId);
+        if (plantillaSeleccionada) {
+            textarea.value = plantillaSeleccionada.contenido;
+        }
     }
+
 
     let planillaCount = 0;
 
