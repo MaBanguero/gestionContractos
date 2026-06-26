@@ -207,6 +207,9 @@ class GestorTransacciones:
                 "No. TELÉFONO y/o CELULAR": c.contratista.telefono,
                 "DIRECCION": c.contratista.direccion,
                 "TIPO DE PERSONA": c.contratista.tipo_persona,
+                "RESOLUCION": c.resolucion,
+                "TIPOLOGIA": c.tipologia,
+                "ESTADO": c.estado,
                 "CÓDIGO CIIU": c.codigo_ciiu,
                 "SUPERVISOR": c.supervisor,
                 "NIVEL PROFESIONAL SUPERVISOR": c.nivel_prof_supervisor,
@@ -225,6 +228,8 @@ class GestorTransacciones:
                 "Cuentas de cobro": p.cuentas_cobro,
                 "VALOR A PAGAR": int(p.valor_a_pagar) if p.valor_a_pagar else 0,
                 "OTRO SI": p.otro_si,
+                "FECHA DE FIRMA": p.fecha_firma,
+                "FECHA DE REGISTRO": p.fecha_registro.strftime('%Y-%m-%d %H:%M') if p.fecha_registro else '',
                 "VALOR PAGADO": int(valor_pagado_calculado),  # Aplicando tu regla
                 "SALDO A PAGAR": int(saldo_a_pagar),
                 "IBC al sistema de Seguridad Social": int(p.ibc) if p.ibc else 0,
@@ -409,6 +414,7 @@ class GestorTransacciones:
                 if row.get('ZONA'): contrato.zona = row.get('ZONA', '')
                 if row.get('RESOLUCION'): contrato.resolucion = row.get('RESOLUCION', '')
                 if row.get('TIPOLOGIA'): contrato.tipologia = row.get('TIPOLOGIA', '')
+                if row.get('ESTADO'): contrato.estado = row.get('ESTADO', 'ACTIVO')
 
                 # --- 3. UPSERT PAGO (Asignación Híbrida: Excel o Calculado) ---
                 pago_no = int(row['_pago_final'])
@@ -448,6 +454,7 @@ class GestorTransacciones:
                 if row.get('Act'): pago.act = str(row.get('Act', ''))
                 if row.get('OBSERVACIONES'): pago.observaciones = row.get('OBSERVACIONES', '')
                 if row.get('N° FOLIOS'): pago.folios = str(row.get('N° FOLIOS', ''))
+                if row.get('FECHA DE FIRMA'): pago.fecha_firma = row.get('FECHA DE FIRMA', '')
 
                 self.db.commit()
                 registros += 1
